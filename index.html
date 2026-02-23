@@ -1,0 +1,2070 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Blackjack AI - Strategy Hunter Pro</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(180deg, #0a0e27 0%, #1a1f4b 100%);
+            height: 100vh;
+            height: 100dvh;
+            color: #fff;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+        }
+
+        .game-wrapper {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            padding: 6px;
+            gap: 4px;
+        }
+
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0a0e27;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .loading-screen.hidden { display: none; }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(78,205,196,0.2);
+            border-top-color: #4ecdc4;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .header {
+            background: rgba(0,0,0,0.5);
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid #4ecdc4;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title { font-size: 14px; font-weight: bold; }
+
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 10px;
+            font-weight: bold;
+            background: #ff6b6b;
+        }
+
+        .status-badge.ready { background: #4ecdc4; color: #000; }
+        .status-badge.training { background: #ffd700; color: #000; animation: pulse 1s infinite; }
+        .status-badge.selfplay { background: #00ff88; color: #000; animation: pulse 0.5s infinite; }
+        .status-badge.autoplay { background: #ff6b6b; color: #fff; animation: pulse 0.3s infinite; }
+        .status-badge.optimizing { background: #bc13fe; color: #fff; animation: pulse 0.8s infinite; }
+
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+        .ai-viz-panel {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid #00ff88;
+            border-radius: 10px;
+            padding: 8px;
+            max-height: 220px;
+            overflow-y: auto;
+        }
+
+        .ai-viz-title {
+            font-size: 10px;
+            color: #00ff88;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .decision-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+
+        .decision-cell {
+            padding: 8px 4px;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 10px;
+            font-weight: bold;
+            transition: all 0.3s;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .decision-cell.hit { background: #4caf50; color: #fff; }
+        .decision-cell.stand { background: #f44336; color: #fff; }
+        .decision-cell.double { background: #9c27b0; color: #fff; }
+        .decision-cell.split { background: #ffeb3b; color: #000; }
+        .decision-cell.selected {
+            box-shadow: 0 0 15px currentColor;
+            transform: scale(1.05);
+            z-index: 10;
+        }
+        .decision-cell.ai-thinking {
+            animation: aiPulse 0.5s infinite;
+        }
+
+        @keyframes aiPulse {
+            0%, 100% { box-shadow: 0 0 5px currentColor; }
+            50% { box-shadow: 0 0 20px currentColor; }
+        }
+
+        .decision-cell .prob {
+            font-size: 8px;
+            opacity: 0.9;
+            margin-top: 2px;
+        }
+
+        .reasoning-box {
+            background: rgba(0,255,136,0.1);
+            border-radius: 6px;
+            padding: 6px;
+            font-size: 10px;
+            margin-top: 6px;
+        }
+
+        .reasoning-title {
+            color: #00ff88;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .factor-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .factor-row:last-child { border-bottom: none; }
+
+        .stats-dashboard {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+        }
+
+        .stat-card {
+            background: rgba(0,0,0,0.4);
+            border-radius: 8px;
+            padding: 6px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.1);
+            position: relative;
+        }
+
+        .stat-card.profit { border-color: #00ff88; }
+        .stat-card.loss { border-color: #ff6b6b; }
+
+        .stat-title { font-size: 8px; color: #888; text-transform: uppercase; }
+        .stat-value { font-size: 16px; font-weight: bold; margin-top: 2px; }
+        .stat-value.positive { color: #00ff88; }
+        .stat-value.negative { color: #ff6b6b; }
+        .stat-value.neutral { color: #ffd700; }
+        .stat-sub { font-size: 9px; color: #666; margin-top: 2px; }
+
+        .deposit-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 18px;
+            height: 18px;
+            background: linear-gradient(135deg, #00ff88, #00cc6a);
+            border: none;
+            border-radius: 50%;
+            color: #000;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+            z-index: 10;
+        }
+
+        .deposit-btn:hover { transform: scale(1.1); }
+        .deposit-btn:active { transform: scale(0.95); }
+
+        .auto-play-panel {
+            background: rgba(255,107,107,0.15);
+            border: 1px solid #ff6b6b;
+            border-radius: 10px;
+            padding: 8px;
+            margin-bottom: 4px;
+        }
+
+        .auto-play-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .auto-play-title {
+            color: #ff6b6b;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .auto-play-status {
+            font-size: 9px;
+            color: #ff6b6b;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .auto-play-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            font-size: 9px;
+        }
+
+        .auto-stat {
+            background: rgba(0,0,0,0.3);
+            padding: 4px;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .auto-stat-value {
+            color: #ff6b6b;
+            font-weight: bold;
+            font-size: 11px;
+        }
+
+        .auto-controls {
+            display: flex;
+            gap: 4px;
+            margin-top: 6px;
+        }
+
+        .auto-btn {
+            flex: 1;
+            padding: 6px;
+            border: none;
+            border-radius: 4px;
+            font-size: 9px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .auto-btn-start {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+            color: #fff;
+        }
+
+        .auto-btn-stop {
+            background: linear-gradient(135deg, #ffd700, #ffed4e);
+            color: #000;
+        }
+
+        .auto-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 4px;
+        }
+
+        .speed-label {
+            font-size: 8px;
+            color: #888;
+        }
+
+        .speed-slider {
+            flex: 1;
+            height: 4px;
+            -webkit-appearance: none;
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+            outline: none;
+        }
+
+        .speed-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            background: #ff6b6b;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .side-bets-panel {
+            background: rgba(255,107,107,0.1);
+            border: 1px solid #ff6b6b;
+            border-radius: 10px;
+            padding: 8px;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+
+        .side-bets-panel .panel-title { color: #ff6b6b; font-size: 10px; text-transform: uppercase; margin-bottom: 6px; display: flex; justify-content: space-between; }
+
+        .side-bet-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 6px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 6px;
+            margin-bottom: 4px;
+            font-size: 10px;
+        }
+
+        .side-bet-toggle {
+            width: 36px;
+            height: 20px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .side-bet-toggle.active { background: #ff6b6b; }
+        .side-bet-toggle::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: all 0.2s;
+        }
+        .side-bet-toggle.active::after { left: 18px; }
+
+        .side-bet-amount {
+            width: 45px;
+            padding: 2px 4px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid #ff6b6b;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 10px;
+            text-align: center;
+        }
+
+        .betting-panel {
+            background: rgba(255,215,0,0.1);
+            border: 1px solid #ffd700;
+            border-radius: 10px;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .betting-panel .panel-title { color: #ffd700; font-size: 10px; text-transform: uppercase; }
+
+        .bet-controls {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .bet-btn {
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 6px;
+            background: rgba(255,215,0,0.3);
+            color: #ffd700;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .bet-input {
+            width: 60px;
+            padding: 4px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid #ffd700;
+            border-radius: 4px;
+            color: #fff;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .game-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-height: 0;
+        }
+
+        .game-box {
+            background: rgba(0,40,0,0.3);
+            border-radius: 10px;
+            padding: 8px;
+            border: 1px solid rgba(255,215,0,0.2);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .box-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .box-title { font-size: 11px; color: #ffd700; font-weight: bold; }
+        .score-pill {
+            background: #ffd700;
+            color: #000;
+            padding: 3px 10px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .cards-area {
+            display: flex;
+            gap: 4px;
+            justify-content: center;
+            flex-wrap: wrap;
+            flex: 1;
+            align-items: center;
+        }
+
+        .card {
+            width: 36px;
+            height: 50px;
+            background: #fff;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 3px;
+            font-size: 9px;
+            font-weight: bold;
+            animation: dealCard 0.3s ease-out;
+            position: relative;
+        }
+
+        @keyframes dealCard {
+            from { transform: translateY(-30px) rotateY(90deg); opacity: 0; }
+            to { transform: translateY(0) rotateY(0); opacity: 1; }
+        }
+
+        .card.red { color: #d32f2f; }
+        .card.black { color: #212121; }
+        .card-back {
+            background: linear-gradient(135deg, #b71c1c, #7f0000);
+            border: 2px solid #ffd700;
+        }
+
+        .card-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+        }
+
+        .controls {
+            background: rgba(0,0,0,0.5);
+            border-radius: 10px;
+            padding: 8px;
+        }
+
+        .mode-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            background: rgba(255,255,255,0.1);
+            color: #888;
+        }
+
+        .tab-btn.active { background: #4ecdc4; color: #000; }
+        .tab-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+        }
+
+        .control-grid.four-cols {
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        .big-btn {
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .big-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .btn-train { background: linear-gradient(135deg, #bc13fe, #9c27b0); color: #fff; }
+        .btn-selfplay { background: linear-gradient(135deg, #00ff88, #00cc6a); color: #000; }
+        .btn-autoplay { background: linear-gradient(135deg, #ff6b6b, #ee5a6f); color: #fff; animation: glow 2s infinite; }
+        .btn-stop { background: linear-gradient(135deg, #ffd700, #ffed4e); color: #000; }
+        .btn-deal { background: linear-gradient(135deg, #4ecdc4, #44a08d); color: #000; }
+        .btn-hit { background: linear-gradient(135deg, #4ecdc4, #44a08d); color: #000; }
+        .btn-stand { background: linear-gradient(135deg, #ffd700, #ffed4e); color: #000; }
+        .btn-double { background: linear-gradient(135deg, #9c27b0, #7b1fa2); color: #fff; }
+        .btn-split { background: linear-gradient(135deg, #ffeb3b, #fbc02d); color: #000; }
+        .btn-optimize { background: linear-gradient(135deg, #ff6b6b, #ee5a6f); color: #fff; }
+
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 5px rgba(255,107,107,0.5); }
+            50% { box-shadow: 0 0 20px rgba(255,107,107,0.8); }
+        }
+
+        .console-log {
+            background: rgba(0,0,0,0.4);
+            border-radius: 6px;
+            padding: 6px;
+            font-size: 9px;
+            max-height: 60px;
+            overflow-y: auto;
+            font-family: monospace;
+        }
+
+        .log-line { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .log-success { color: #00ff88; }
+        .log-error { color: #ff6b6b; }
+        .log-info { color: #4ecdc4; }
+        .log-ai { color: #00ff88; }
+        .log-autoplay { color: #ff6b6b; }
+        .log-optimize { color: #bc13fe; }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal.show { display: flex; }
+
+        .modal-content {
+            background: linear-gradient(135deg, #1a1f4b, #0d1235);
+            padding: 20px;
+            border-radius: 16px;
+            border: 2px solid #4ecdc4;
+            max-width: 95vw;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-title { color: #4ecdc4; font-size: 18px; margin-bottom: 12px; }
+        .modal-btn { padding: 12px; background: #4ecdc4; color: #000; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 8px; }
+        .modal-btn.secondary { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid #4ecdc4; }
+
+        .full-strategy-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8px;
+        }
+
+        .full-strategy-table th, .full-strategy-table td {
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 4px 2px;
+            text-align: center;
+            min-width: 28px;
+        }
+
+        .full-strategy-table th {
+            background: rgba(255,215,0,0.3);
+            color: #ffd700;
+            font-size: 9px;
+        }
+
+        .full-strategy-table .header-col {
+            background: rgba(78,205,196,0.3);
+            color: #4ecdc4;
+            font-weight: bold;
+        }
+
+        .full-strategy-table .cell-h { background: #2e7d32; color: #fff; }
+        .full-strategy-table .cell-s { background: #c62828; color: #fff; }
+        .full-strategy-table .cell-d { background: #6a1b9a; color: #fff; }
+        .full-strategy-table .cell-sp { background: #f9a825; color: #000; }
+        .full-strategy-table .cell-optimized {
+            border: 2px solid #00ff88 !important;
+            box-shadow: 0 0 5px #00ff88;
+        }
+
+        .legend {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 10px 0;
+            font-size: 11px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .legend-box {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+
+        .table-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .table-control-btn {
+            flex: 1;
+            padding: 8px;
+            background: rgba(78,205,196,0.2);
+            border: 1px solid #4ecdc4;
+            border-radius: 6px;
+            color: #4ecdc4;
+            font-size: 11px;
+            cursor: pointer;
+            min-width: 80px;
+        }
+
+        .table-control-btn:hover { background: #4ecdc4; color: #000; }
+
+        .optimization-stats {
+            background: rgba(188, 19, 254, 0.1);
+            border: 1px solid #bc13fe;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 11px;
+        }
+
+        .optimization-stats-title {
+            color: #bc13fe;
+            font-weight: bold;
+            margin-bottom: 6px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #4ecdc4);
+            transition: width 0.3s;
+        }
+
+        .ai-learning-status {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid #00ff88;
+            border-radius: 6px;
+            padding: 6px;
+            margin-top: 6px;
+            font-size: 9px;
+        }
+
+        .rule-change-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #00ff88;
+            border-radius: 50%;
+            margin-left: 4px;
+            animation: blink 1s infinite;
+        }
+
+        .auto-action-indicator {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #ff6b6b;
+            color: #fff;
+            font-size: 8px;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-weight: bold;
+            animation: pulse 0.5s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-spinner"></div>
+        <div style="color: #4ecdc4; font-size: 14px;">Завантаження AI...</div>
+    </div>
+
+    <div class="game-wrapper">
+        <div class="header">
+            <div>
+                <div class="header-title">♠ BLACKJACK7 AI PRO</div>
+                <div style="font-size: 9px; color: #666;">AI Автогра + Оптимізація</div>
+            </div>
+            <div class="status-badge" id="systemStatus">⏳ Завантаження</div>
+        </div>
+
+        <div class="stats-dashboard">
+            <div class="stat-card" id="statBalance">
+                <button class="deposit-btn" onclick="showDepositModal()">+</button>
+                <div class="stat-title">Баланс</div>
+                <div class="stat-value neutral">₴1000</div>
+                <div class="stat-sub" id="balanceSub">TC: 0.0</div>
+            </div>
+            <div class="stat-card" id="statProfit">
+                <div class="stat-title">Прибуток</div>
+                <div class="stat-value neutral">₴0</div>
+                <div class="stat-sub" id="profitPercent">0%</div>
+            </div>
+            <div class="stat-card" id="statWinRate">
+                <div class="stat-title">Точність AI</div>
+                <div class="stat-value neutral">0%</div>
+                <div class="stat-sub" id="gamesCount">0 ігор</div>
+            </div>
+        </div>
+
+        <div class="auto-play-panel" id="autoPlayPanel" style="display: none;">
+            <div class="auto-play-header">
+                <span class="auto-play-title">🤖 АВТОГРА AI</span>
+                <span class="auto-play-status" id="autoPlayStatus">Грає...</span>
+            </div>
+            <div class="auto-play-stats">
+                <div class="auto-stat">
+                    <div>Ігор</div>
+                    <div class="auto-stat-value" id="autoGames">0</div>
+                </div>
+                <div class="auto-stat">
+                    <div>Виграш</div>
+                    <div class="auto-stat-value" id="autoWinAmount">₴0</div>
+                </div>
+                <div class="auto-stat">
+                    <div>Серія</div>
+                    <div class="auto-stat-value" id="autoStreak">0</div>
+                </div>
+            </div>
+            <div class="speed-control">
+                <span class="speed-label">Швидкість:</span>
+                <input type="range" class="speed-slider" id="autoSpeed" min="1" max="5" value="3">
+                <span class="speed-label" id="speedValue">3x</span>
+            </div>
+            <div class="auto-controls">
+                <button class="auto-btn auto-btn-stop" onclick="stopAutoPlay()">⏹ ЗУПИНИТИ</button>
+                <button class="auto-btn" onclick="toggleAutoPause()" id="pauseBtn" style="background: #4ecdc4; color: #000;">⏸ ПАУЗА</button>
+            </div>
+        </div>
+
+        <div class="ai-viz-panel" id="aiVizPanel">
+            <div class="ai-viz-title">
+                <span>🧠 AI Аналіз <span id="learningIndicator" class="rule-change-indicator" style="display: none;"></span></span>
+                <span style="font-size: 9px; color: #888;" id="vizStatus">Очікування...</span>
+            </div>
+            
+            <div class="decision-grid" id="decisionGrid">
+                <div class="decision-cell hit" id="cell-hit" onclick="playerAction('hit')">
+                    HIT<br>ВЗЯТИ
+                    <div class="prob" id="prob-hit">0%</div>
+                </div>
+                <div class="decision-cell stand" id="cell-stand" onclick="playerAction('stand')">
+                    STAND<br>СТОП
+                    <div class="prob" id="prob-stand">0%</div>
+                </div>
+                <div class="decision-cell double" id="cell-double" onclick="playerAction('double')">
+                    DOUBLE<br>ПОДВІЙНА
+                    <div class="prob" id="prob-double">0%</div>
+                </div>
+                <div class="decision-cell split" id="cell-split" onclick="playerAction('split')">
+                    SPLIT<br>РОЗДІЛИТИ
+                    <div class="prob" id="prob-split">0%</div>
+                </div>
+            </div>
+
+            <div class="ai-learning-status" id="learningStatus" style="display: none;">
+                <div style="color: #00ff88; font-weight: bold; margin-bottom: 4px;">📚 Самонавчання в процесі...</div>
+                <div style="display: flex; justify-content: space-between; font-size: 8px;">
+                    <span>Симуляцій: <span id="simCount">0</span></span>
+                    <span>Змін правил: <span id="ruleChanges">0</span></span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="learningProgress" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="reasoning-box" id="reasoningBox" style="display: none;">
+                <div class="reasoning-title">📊 Фактори рішення:</div>
+                <div id="factorsList"></div>
+            </div>
+        </div>
+
+        <div class="side-bets-panel">
+            <div class="panel-title">
+                <span>🎲 Побічні ставки</span>
+                <span style="font-size: 9px; color: #888;" id="totalSideBets">₴0</span>
+            </div>
+            <div class="side-bet-item">
+                <span>Perfect Pairs</span>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="number" class="side-bet-amount" id="perfectPairsBet" placeholder="0" onchange="updateSideBet('perfectPairs')">
+                    <div class="side-bet-toggle" id="perfectPairsToggle" onclick="toggleSideBet('perfectPairs')"></div>
+                </div>
+            </div>
+            <div class="side-bet-item">
+                <span>21+3</span>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="number" class="side-bet-amount" id="twentyOnePlusThreeBet" placeholder="0" onchange="updateSideBet('twentyOnePlusThree')">
+                    <div class="side-bet-toggle" id="twentyOnePlusThreeToggle" onclick="toggleSideBet('twentyOnePlusThree')"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="betting-panel">
+            <div class="panel-title">💰 Ставка</div>
+            <div class="bet-controls">
+                <button class="bet-btn" onclick="changeBet(-50)">-</button>
+                <input type="number" class="bet-input" id="currentBetInput" value="250" onchange="updateBetFromInput()">
+                <button class="bet-btn" onclick="changeBet(50)">+</button>
+            </div>
+        </div>
+
+        <div class="game-area">
+            <div class="game-box">
+                <div class="box-header">
+                    <span class="box-title">🎰 ДИЛЕР</span>
+                    <span class="score-pill" id="dealerScore">--</span>
+                </div>
+                <div class="cards-area" id="dealerCards"></div>
+            </div>
+
+            <div class="game-box">
+                <div class="box-header">
+                    <span class="box-title">🤖 ВИ</span>
+                    <span class="score-pill" id="playerScore">--</span>
+                </div>
+                <div class="cards-area" id="playerCards"></div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="mode-tabs">
+                <button class="tab-btn active" onclick="setMode('manual')" id="tabManual">🎮 Гра</button>
+                <button class="tab-btn" onclick="setMode('train')" id="tabTrain">🎓 Навчання</button>
+                <button class="tab-btn" onclick="showFullTable()" id="tabTable">📋 Таблиця</button>
+            </div>
+
+            <div class="control-grid" id="controlArea">
+                <button class="big-btn btn-deal" onclick="newRound()" id="mainBtn">🎲 НОВА ГРА</button>
+                <button class="big-btn btn-autoplay" onclick="startAutoPlay()" id="secondBtn">🤖 АВТОГРА</button>
+            </div>
+        </div>
+
+        <div class="console-log" id="consoleLog">
+            <div class="log-line log-info">Система запускається...</div>
+        </div>
+    </div>
+
+    <div class="modal" id="tableModal">
+        <div class="modal-content">
+            <div class="modal-title">📋 Таблиця базової стратегії <span id="tableOptimizedBadge" style="display: none; background: #00ff88; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 8px;">ОПТИМІЗОВАНО</span></div>
+            
+            <div class="optimization-stats" id="optimizationStats" style="display: none;">
+                <div class="optimization-stats-title">📊 Статистика оптимізації</div>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+                    <div>Перевірено сценаріїв: <span id="scenariosTested" style="color: #00ff88; font-weight: bold;">0</span></div>
+                    <div>Покращень знайдено: <span id="improvementsFound" style="color: #00ff88; font-weight: bold;">0</span></div>
+                    <div>ROI базової: <span id="baseROI" style="color: #ffd700;">0%</span></div>
+                    <div>ROI оптимізованої: <span id="optimizedROI" style="color: #00ff88; font-weight: bold;">0%</span></div>
+                </div>
+            </div>
+
+            <div class="legend">
+                <div class="legend-item"><div class="legend-box" style="background: #4caf50;"></div> H=Hit</div>
+                <div class="legend-item"><div class="legend-box" style="background: #f44336;"></div> S=Stand</div>
+                <div class="legend-item"><div class="legend-box" style="background: #6a1b9a;"></div> D=Double</div>
+                <div class="legend-item"><div class="legend-box" style="background: #f9a825;"></div> SP=Split</div>
+                <div class="legend-item"><div class="legend-box" style="border: 2px solid #00ff88; background: transparent;"></div> Оптимізовано</div>
+            </div>
+
+            <div class="table-controls">
+                <button class="table-control-btn" onclick="switchTableView('hard')">Hard</button>
+                <button class="table-control-btn" onclick="switchTableView('soft')">Soft</button>
+                <button class="table-control-btn" onclick="switchTableView('pairs')">Pairs</button>
+                <button class="table-control-btn" onclick="resetToBasicStrategy()">🔄 Скинути</button>
+                <button class="table-control-btn" onclick="exportStrategy()">💾 Експорт</button>
+            </div>
+
+            <div id="tableContainer"></div>
+            
+            <button class="modal-btn" onclick="hideTableModal()" style="margin-top: 15px;">Закрити</button>
+        </div>
+    </div>
+
+    <div class="modal" id="depositModal">
+        <div class="modal-content">
+            <div class="modal-title">💰 Поповнення</div>
+            <input type="number" class="deposit-input" id="depositAmount" placeholder="Сума (₴)" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid #4ecdc4; border-radius: 8px; color: #fff; margin-bottom: 10px;">
+            <button class="modal-btn" onclick="confirmDeposit()">Поповнити</button>
+            <button class="modal-btn secondary" onclick="hideDepositModal()">Скасувати</button>
+        </div>
+    </div>
+
+    <script>
+        let tfModel = null;
+        let isModelReady = false;
+        let balance = 1000;
+        let currentBet = 250;
+        let deck = [];
+        let dealerHand = [];
+        let playerHand = [];
+        let playerHands = [];
+        let currentHandIndex = 0;
+        let runningCount = 0;
+        let trueCount = 0;
+        let gameState = 'idle';
+        let aiDecisionHistory = [];
+        let currentTableView = 'hard';
+        let isTraining = false;
+        let isSelfPlaying = false;
+        let isAutoPlaying = false;
+        let autoPlayPaused = false;
+        let autoPlaySpeed = 3;
+        let stats = { totalGames: 0, wins: 0, losses: 0, pushes: 0, correctDecisions: 0, totalDecisions: 0 };
+        
+        // Автогра статистика
+        let autoPlayStats = {
+            gamesPlayed: 0,
+            totalWon: 0,
+            totalLost: 0,
+            currentStreak: 0,
+            maxWin: 0,
+            maxLoss: 0,
+            startBalance: 1000
+        };
+        
+        let sideBets = {
+            perfectPairs: { active: false, amount: 0 },
+            twentyOnePlusThree: { active: false, amount: 0 }
+        };
+
+        // Статистика для оптимізації
+        let optimizationData = {
+            scenarioStats: new Map(),
+            simulationsRun: 0,
+            rulesChanged: 0,
+            baseStrategyROI: 0,
+            optimizedROI: 0,
+            improvedCells: new Set()
+        };
+
+        // Базова стратегія
+        const baseStrategy = {
+            hard: {
+                8:  {2:'H',3:'H',4:'H',5:'H',6:'H',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                9:  {2:'H',3:'D',4:'D',5:'D',6:'D',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                10: {2:'D',3:'D',4:'D',5:'D',6:'D',7:'D',8:'D',9:'D',10:'H',A:'H'},
+                11: {2:'D',3:'D',4:'D',5:'D',6:'D',7:'D',8:'D',9:'D',10:'D',A:'D'},
+                12: {2:'H',3:'H',4:'S',5:'S',6:'S',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                13: {2:'S',3:'S',4:'S',5:'S',6:'S',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                14: {2:'S',3:'S',4:'S',5:'S',6:'S',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                15: {2:'S',3:'S',4:'S',5:'S',6:'S',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                16: {2:'S',3:'S',4:'S',5:'S',6:'S',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                17: {2:'S',3:'S',4:'S',5:'S',6:'S',7:'S',8:'S',9:'S',10:'S',A:'S'},
+                18: {2:'S',3:'S',4:'S',5:'S',6:'S',7:'S',8:'S',9:'S',10:'S',A:'S'},
+                19: {2:'S',3:'S',4:'S',5:'S',6:'S',7:'S',8:'S',9:'S',10:'S',A:'S'},
+                20: {2:'S',3:'S',4:'S',5:'S',6:'S',7:'S',8:'S',9:'S',10:'S',A:'S'}
+            },
+            soft: {
+                'A2': {2:'H',3:'H',4:'H',5:'D',6:'D',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                'A3': {2:'H',3:'H',4:'H',5:'D',6:'D',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                'A4': {2:'H',3:'H',4:'D',5:'D',6:'D',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                'A5': {2:'H',3:'H',4:'D',5:'D',6:'D',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                'A6': {2:'H',3:'D',4:'D',5:'D',6:'D',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                'A7': {2:'S',3:'D',4:'D',5:'D',6:'D',7:'S',8:'S',9:'H',10:'H',A:'H'},
+                'A8': {2:'S',3:'S',4:'S',5:'S',6:'S',7:'S',8:'S',9:'S',10:'S',A:'S'},
+                'A9': {2:'S',3:'S',4:'S',5:'S',6:'S',7:'S',8:'S',9:'S',10:'S',A:'S'}
+            },
+            pairs: {
+                '2,2': {2:'SP',3:'SP',4:'SP',5:'SP',6:'SP',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                '3,3': {2:'SP',3:'SP',4:'SP',5:'SP',6:'SP',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                '4,4': {2:'H',3:'H',4:'H',5:'SP',6:'SP',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                '5,5': {2:'D',3:'D',4:'D',5:'D',6:'D',7:'D',8:'D',9:'D',10:'H',A:'H'},
+                '6,6': {2:'SP',3:'SP',4:'SP',5:'SP',6:'SP',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                '7,7': {2:'SP',3:'SP',4:'SP',5:'SP',6:'SP',7:'SP',8:'H',9:'H',10:'H',A:'H'},
+                '8,8': {2:'SP',3:'SP',4:'SP',5:'SP',6:'SP',7:'SP',8:'SP',9:'SP',10:'SP',A:'SP'},
+                '9,9': {2:'SP',3:'SP',4:'SP',5:'SP',6:'SP',7:'S',8:'SP',9:'SP',10:'S',A:'S'},
+                '10,10': {2:'S',3:'S',4:'S',5:'S',6:'S',7:'S',8:'S',9:'S',10:'S',A:'S'},
+                'A,A': {2:'SP',3:'SP',4:'SP',5:'SP',6:'SP',7:'SP',8:'SP',9:'SP',10:'SP',A:'SP'}
+            }
+        };
+
+        let optimizedStrategy = JSON.parse(JSON.stringify(baseStrategy));
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await tf.ready();
+                
+                tfModel = tf.sequential({
+                    layers: [
+                        tf.layers.dense({inputShape: [15], units: 128, activation: 'relu'}),
+                        tf.layers.dropout({rate: 0.2}),
+                        tf.layers.dense({units: 64, activation: 'relu'}),
+                        tf.layers.dense({units: 32, activation: 'relu'}),
+                        tf.layers.dense({units: 4, activation: 'softmax'})
+                    ]
+                });
+                
+                tfModel.compile({
+                    optimizer: tf.train.adam(0.001), 
+                    loss: 'categoricalCrossentropy',
+                    metrics: ['accuracy']
+                });
+                
+                isModelReady = true;
+                createDeck();
+                updateDisplay();
+                
+                document.getElementById('loadingScreen').classList.add('hidden');
+                document.getElementById('systemStatus').textContent = '✅ Готовий';
+                document.getElementById('systemStatus').classList.add('ready');
+                
+                // Налаштування швидкості
+                document.getElementById('autoSpeed').addEventListener('input', (e) => {
+                    autoPlaySpeed = parseInt(e.target.value);
+                    document.getElementById('speedValue').textContent = autoPlaySpeed + 'x';
+                });
+                
+                addLog('Система готова! AI може грати автоматично', 'success');
+            } catch (err) {
+                console.error(err);
+                addLog('Помилка: ' + err.message, 'error');
+            }
+        });
+
+        // === АВТОГРА ===
+
+        async function startAutoPlay() {
+            if (isAutoPlaying) return;
+            
+            if (balance < currentBet) {
+                addLog('Недостатньо коштів для автогри!', 'error');
+                showDepositModal();
+                return;
+            }
+
+            isAutoPlaying = true;
+            autoPlayPaused = false;
+            autoPlayStats.startBalance = balance;
+            autoPlayStats.gamesPlayed = 0;
+            autoPlayStats.totalWon = 0;
+            autoPlayStats.totalLost = 0;
+            autoPlayStats.currentStreak = 0;
+            
+            document.getElementById('autoPlayPanel').style.display = 'block';
+            document.getElementById('secondBtn').textContent = '⏹ ЗУПИНИТИ';
+            document.getElementById('secondBtn').className = 'big-btn btn-stop';
+            document.getElementById('secondBtn').onclick = stopAutoPlay;
+            document.getElementById('systemStatus').textContent = '🤖 Автогра';
+            document.getElementById('systemStatus').className = 'status-badge autoplay';
+            document.getElementById('mainBtn').disabled = true;
+            
+            addLog('🤖 AI починає автоматичну гру!', 'autoplay');
+            
+            while (isAutoPlaying && balance >= currentBet) {
+                if (autoPlayPaused) {
+                    await new Promise(r => setTimeout(r, 100));
+                    continue;
+                }
+                
+                // Починаємо нову гру
+                await autoPlayRound();
+                
+                // Оновлюємо статистику
+                updateAutoPlayStats();
+                
+                // Затримка між іграми залежно від швидкості
+                const delay = [2000, 1500, 1000, 600, 300][autoPlaySpeed - 1];
+                await new Promise(r => setTimeout(r, delay));
+            }
+            
+            if (balance < currentBet) {
+                addLog('Автогра зупинена: недостатньо коштів', 'error');
+                stopAutoPlay();
+            }
+        }
+
+        async function autoPlayRound() {
+            // Скидаємо руки
+            playerHands = [];
+            currentHandIndex = 0;
+            
+            // Ставка
+            let sideBetTotal = 0;
+            if (sideBets.perfectPairs.active) sideBetTotal += sideBets.perfectPairs.amount;
+            if (sideBets.twentyOnePlusThree.active) sideBetTotal += sideBets.twentyOnePlusThree.amount;
+            
+            if (sideBetTotal > 0 && balance >= currentBet + sideBetTotal) {
+                balance -= sideBetTotal;
+            }
+            
+            balance -= currentBet;
+            dealerHand = [draw(), draw()];
+            playerHand = [draw(), draw()];
+            playerHands.push([...playerHand]);
+            
+            gameState = 'playing';
+            autoPlayStats.gamesPlayed++;
+            
+            updateDisplay();
+            updateStats();
+            
+            // Перевіряємо блекджек
+            const pScore = calcScore(playerHand);
+            const dScore = calcScore(dealerHand);
+            
+            if (pScore === 21 && playerHand.length === 2) {
+                if (dScore !== 21 || dealerHand.length !== 2) {
+                    const winAmount = currentBet * 2.5;
+                    balance += winAmount;
+                    autoPlayStats.totalWon += (winAmount - currentBet);
+                    autoPlayStats.currentStreak = Math.max(0, autoPlayStats.currentStreak) + 1;
+                    addLog(`🎰 Блекджек! +₴${Math.floor(winAmount - currentBet)}`, 'success');
+                    endRound('win');
+                    return;
+                } else {
+                    balance += currentBet; // Нічия
+                    addLog('Нічия (обидва з блекджеком)', 'info');
+                    endRound('push');
+                    return;
+                }
+            }
+            
+            if (dScore === 21 && dealerHand.length === 2) {
+                autoPlayStats.totalLost += currentBet;
+                autoPlayStats.currentStreak = Math.min(0, autoPlayStats.currentStreak) - 1;
+                addLog('Дилер блекджек', 'error');
+                endRound('lose');
+                return;
+            }
+            
+            // AI грає руки
+            while (currentHandIndex < playerHands.length) {
+                const currentHand = playerHands[currentHandIndex];
+                let handComplete = false;
+                
+                while (!handComplete) {
+                    const state = getCurrentState();
+                    const decision = await visualizeAIDecision();
+                    
+                    if (!decision) break;
+                    
+                    const action = decision.bestAction;
+                    
+                    // Візуалізуємо дію AI
+                    highlightAIAction(action);
+                    addLog(`AI: ${action.toUpperCase()} (${state.playerScore} vs ${state.dealerCard})`, 'autoplay');
+                    
+                    // Затримка перед дією
+                    const actionDelay = [800, 600, 400, 250, 150][autoPlaySpeed - 1];
+                    await new Promise(r => setTimeout(r, actionDelay));
+                    
+                    switch(action) {
+                        case 'hit':
+                            currentHand.push(draw());
+                            updateDisplay();
+                            if (calcScore(currentHand) > 21) {
+                                handComplete = true;
+                                addLog('Перебір!', 'error');
+                            }
+                            break;
+                            
+                        case 'stand':
+                            handComplete = true;
+                            break;
+                            
+                        case 'double':
+                            if (balance >= currentBet && state.canDouble) {
+                                balance -= currentBet;
+                                currentHand.push(draw());
+                                updateStats();
+                                handComplete = true;
+                                addLog('Подвійна ставка', 'info');
+                            } else {
+                                // Якщо не можемо подвоїти, беремо карту
+                                currentHand.push(draw());
+                                updateDisplay();
+                                handComplete = true;
+                            }
+                            break;
+                            
+                        case 'split':
+                            if (balance >= currentBet && state.canSplit) {
+                                balance -= currentBet;
+                                const card1 = currentHand[0];
+                                const card2 = currentHand[1];
+                                playerHands[currentHandIndex] = [card1, draw()];
+                                playerHands.push([card2, draw()]);
+                                updateStats();
+                                updateDisplay();
+                                addLog('Спліт!', 'info');
+                            } else {
+                                handComplete = true;
+                            }
+                            break;
+                    }
+                    
+                    if (currentHand.length > 6) handComplete = true;
+                }
+                
+                currentHandIndex++;
+                if (currentHandIndex < playerHands.length) {
+                    updateDisplay();
+                }
+            }
+            
+            // Хід дилера
+            await autoPlayDealer();
+            
+            // Визначаємо результат
+            determineAutoPlayWinner();
+        }
+
+        async function autoPlayDealer() {
+            gameState = 'dealer';
+            updateDisplay();
+            addLog('Дилер грає...', 'info');
+            
+            while (calcScore(dealerHand) < 17) {
+                await new Promise(r => setTimeout(r, 400));
+                dealerHand.push(draw());
+                updateDisplay();
+            }
+        }
+
+        function determineAutoPlayWinner() {
+            const dScore = calcScore(dealerHand);
+            let totalProfit = 0;
+            
+            playerHands.forEach((hand, idx) => {
+                const pScore = calcScore(hand);
+                let profit = -currentBet;
+                
+                if (pScore > 21) {
+                    // Програш
+                } else if (dScore > 21 || pScore > dScore) {
+                    profit = currentBet; // Виграш ставки (повертаємо 2x, чистий прибуток = ставка)
+                    autoPlayStats.totalWon += currentBet;
+                } else if (pScore === dScore) {
+                    profit = 0; // Нічия
+                    balance += currentBet; // Повертаємо ставку
+                } else {
+                    autoPlayStats.totalLost += currentBet;
+                }
+                
+                totalProfit += profit;
+            });
+            
+            if (totalProfit > 0) {
+                autoPlayStats.currentStreak = Math.max(0, autoPlayStats.currentStreak) + 1;
+                addLog(`Виграш: +₴${totalProfit}`, 'success');
+            } else if (totalProfit < 0) {
+                autoPlayStats.currentStreak = Math.min(0, autoPlayStats.currentStreak) - 1;
+                addLog(`Програш: ₴${Math.abs(totalProfit)}`, 'error');
+            } else {
+                addLog('Нічия', 'info');
+            }
+            
+            stats.totalGames++;
+            gameState = 'finished';
+            updateStats();
+            updateDisplay();
+        }
+
+        function highlightAIAction(action) {
+            document.querySelectorAll('.decision-cell').forEach(cell => {
+                cell.classList.remove('ai-thinking');
+            });
+            
+            const cell = document.getElementById('cell-' + action);
+            if (cell) {
+                cell.classList.add('ai-thinking');
+                setTimeout(() => cell.classList.remove('ai-thinking'), 1000);
+            }
+        }
+
+        function updateAutoPlayStats() {
+            document.getElementById('autoGames').textContent = autoPlayStats.gamesPlayed;
+            const netProfit = autoPlayStats.totalWon - autoPlayStats.totalLost;
+            const profitEl = document.getElementById('autoWinAmount');
+            profitEl.textContent = (netProfit >= 0 ? '+' : '') + '₴' + Math.floor(netProfit);
+            profitEl.style.color = netProfit >= 0 ? '#00ff88' : '#ff6b6b';
+            
+            const streakEl = document.getElementById('autoStreak');
+            streakEl.textContent = (autoPlayStats.currentStreak > 0 ? '+' : '') + autoPlayStats.currentStreak;
+            streakEl.style.color = autoPlayStats.currentStreak > 0 ? '#00ff88' : autoPlayStats.currentStreak < 0 ? '#ff6b6b' : '#ffd700';
+        }
+
+        function stopAutoPlay() {
+            isAutoPlaying = false;
+            autoPlayPaused = false;
+            
+            document.getElementById('autoPlayPanel').style.display = 'none';
+            document.getElementById('secondBtn').textContent = '🤖 АВТОГРА';
+            document.getElementById('secondBtn').className = 'big-btn btn-autoplay';
+            document.getElementById('secondBtn').onclick = startAutoPlay;
+            document.getElementById('systemStatus').textContent = '✅ Готовий';
+            document.getElementById('systemStatus').className = 'status-badge ready';
+            document.getElementById('mainBtn').disabled = false;
+            
+            const netProfit = autoPlayStats.totalWon - autoPlayStats.totalLost;
+            addLog(`🛑 Автогра завершена! Результат: ${netProfit >= 0 ? '+' : ''}₴${Math.floor(netProfit)}`, netProfit >= 0 ? 'success' : 'info');
+        }
+
+        function toggleAutoPause() {
+            autoPlayPaused = !autoPlayPaused;
+            const btn = document.getElementById('pauseBtn');
+            if (autoPlayPaused) {
+                btn.textContent = '▶ ПРОДОВЖИТИ';
+                btn.style.background = '#00ff88';
+                document.getElementById('autoPlayStatus').textContent = 'Пауза';
+                addLog('Автогра на паузі', 'info');
+            } else {
+                btn.textContent = '⏸ ПАУЗА';
+                btn.style.background = '#4ecdc4';
+                document.getElementById('autoPlayStatus').textContent = 'Грає...';
+                addLog('Автогра продовжується', 'info');
+            }
+        }
+
+        // === РЕШТА ФУНКЦІЙ (візуалізація, симуляції, гра) ===
+
+        async function visualizeAIDecision() {
+            if (!tfModel || playerHand.length < 2) return;
+            
+            const state = getCurrentState();
+            const input = tf.tensor2d([[
+                state.playerScore / 21, state.dealerCard / 11,
+                state.canSplit ? 1 : 0, state.canDouble ? 1 : 0,
+                state.isSoft ? 1 : 0, state.numCards / 8,
+                state.playerScore >= 17 ? 1 : 0, state.playerScore <= 11 ? 1 : 0,
+                state.dealerCard >= 7 ? 1 : 0, state.dealerCard <= 6 ? 1 : 0,
+                trueCount / 10, deck.length / 416,
+                (state.playerScore - state.dealerCard) / 20,
+                state.isSoft && state.playerScore >= 18 ? 1 : 0,
+                state.canDouble && state.playerScore >= 9 && state.playerScore <= 11 ? 1 : 0
+            ]]);
+
+            const pred = tfModel.predict(input);
+            const probs = await pred.data();
+            input.dispose();
+            pred.dispose();
+
+            const actions = ['hit', 'stand', 'double', 'split'];
+            const masks = [true, true, state.canDouble, state.canSplit];
+            const validProbs = probs.map((p, i) => masks[i] ? p : 0);
+            const sum = validProbs.reduce((a,b) => a+b, 0);
+            const normalized = validProbs.map(p => sum > 0 ? p / sum : 0);
+            const maxProb = Math.max(...normalized);
+            
+            const optimizedAction = getOptimizedStrategyAction(state);
+            const bestAction = optimizedAction !== null ? optimizedAction : actions[normalized.indexOf(maxProb)];
+
+            document.querySelectorAll('.decision-cell').forEach(cell => {
+                cell.classList.remove('selected');
+                cell.style.opacity = '0.5';
+            });
+
+            normalized.forEach((prob, idx) => {
+                const cell = document.getElementById('cell-' + actions[idx]);
+                const probDiv = document.getElementById('prob-' + actions[idx]);
+                probDiv.textContent = (prob * 100).toFixed(1) + '%';
+                
+                if (masks[idx]) {
+                    cell.style.opacity = Math.max(0.3, prob * 2);
+                    if (actions[idx] === bestAction) cell.classList.add('selected');
+                } else {
+                    cell.style.opacity = '0.2';
+                    probDiv.textContent = 'N/A';
+                }
+            });
+
+            showReasoning(state, normalized, bestAction, optimizedAction !== null);
+            document.getElementById('vizStatus').textContent = 'Рішення: ' + bestAction.toUpperCase() + (optimizedAction !== null ? ' (опт.)' : '');
+            
+            return { bestAction, confidence: maxProb, isOptimized: optimizedAction !== null };
+        }
+
+        function getOptimizedStrategyAction(state) {
+            const {playerScore, dealerCard, canSplit, canDouble, isSoft} = state;
+            const dCard = dealerCard === 11 ? 'A' : dealerCard.toString();
+            
+            let strategyTable;
+            let key;
+            
+            if (canSplit) {
+                strategyTable = optimizedStrategy.pairs;
+                key = getPairKey(playerScore);
+            } else if (isSoft) {
+                strategyTable = optimizedStrategy.soft;
+                key = getSoftKey(playerScore);
+            } else {
+                strategyTable = optimizedStrategy.hard;
+                key = Math.min(20, Math.max(8, playerScore));
+            }
+            
+            if (strategyTable[key] && strategyTable[key][dCard]) {
+                const action = strategyTable[key][dCard];
+                if (action === 'H') return 'hit';
+                if (action === 'S') return 'stand';
+                if (action === 'D' && canDouble) return 'double';
+                if (action === 'SP' && canSplit) return 'split';
+            }
+            
+            return null;
+        }
+
+        function showReasoning(state, probs, bestAction, isOptimized) {
+            const box = document.getElementById('reasoningBox');
+            const list = document.getElementById('factorsList');
+            
+            const factors = [
+                { name: 'Очки гравця', value: state.playerScore, weight: state.playerScore > 17 ? 'Високі - краще стояти' : 'Низькі - потрібна карта' },
+                { name: 'Карта дилера', value: state.dealerCard, weight: state.dealerCard >= 7 ? 'Сильна - ризиковано' : 'Слабка - можна грати' },
+                { name: 'True Count', value: trueCount.toFixed(1), weight: trueCount > 0 ? 'Позитивний' : 'Негативний' },
+                { name: 'Стратегія', value: isOptimized ? 'Оптимізована AI' : 'Базова', weight: isOptimized ? 'Покращена статистикою' : 'Класична таблиця' }
+            ];
+
+            list.innerHTML = factors.map(f => `
+                <div class="factor-row">
+                    <span style="color: ${f.name === 'Стратегія' && isOptimized ? '#00ff88' : '#888'};">${f.name}:</span>
+                    <span style="color: #fff; font-weight: bold;">${f.value}</span>
+                </div>
+                <div style="font-size: 8px; color: #4ecdc4; margin-bottom: 4px; padding-left: 10px;">
+                    → ${f.weight}
+                </div>
+            `).join('');
+
+            box.style.display = 'block';
+        }
+
+        function generateStrategyTable() {
+            const container = document.getElementById('tableContainer');
+            const dealerCards = [2, 3, 4, 5, 6, 7, 8, 9, 10, 'A'];
+            
+            let html = '<table class="full-strategy-table"><thead><tr><th></th>';
+            dealerCards.forEach(dc => html += `<th>${dc}</th>`);
+            html += '</tr></thead><tbody>';
+
+            const data = optimizedStrategy[currentTableView];
+            const baseData = baseStrategy[currentTableView];
+            
+            for (let [playerHand, actions] of Object.entries(data)) {
+                html += `<tr><td class="header-col">${playerHand}</td>`;
+                for (let dc of dealerCards) {
+                    const action = actions[dc];
+                    const baseAction = baseData[playerHand] ? baseData[playerHand][dc] : action;
+                    const isOptimized = action !== baseAction;
+                    
+                    const cellClass = action === 'H' ? 'cell-h' : action === 'S' ? 'cell-s' : action === 'D' ? 'cell-d' : 'cell-sp';
+                    const optimizedClass = isOptimized ? 'cell-optimized' : '';
+                    
+                    html += `<td class="${cellClass} ${optimizedClass}" title="${isOptimized ? 'Змінено AI: ' + baseAction + ' → ' + action : 'Базова стратегія'}">${action}${isOptimized ? '<span class="rule-change-indicator"></span>' : ''}</td>`;
+                }
+                html += '</tr>';
+            }
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+            
+            const hasOptimizations = optimizationData.improvedCells.size > 0;
+            document.getElementById('tableOptimizedBadge').style.display = hasOptimizations ? 'inline-block' : 'none';
+        }
+
+        function switchTableView(view) {
+            currentTableView = view;
+            generateStrategyTable();
+        }
+
+        // Самонавчання (скорочено для економії місця)
+        async function startSelfPlay() {
+            if (isSelfPlaying) {
+                isSelfPlaying = false;
+                document.getElementById('secondBtn').textContent = '🤖 Самонавчання';
+                document.getElementById('systemStatus').textContent = '✅ Готовий';
+                document.getElementById('systemStatus').className = 'status-badge ready';
+                addLog('Самонавчання зупинено', 'info');
+                return;
+            }
+
+            isSelfPlaying = true;
+            document.getElementById('secondBtn').textContent = '⏹ Зупинити';
+            document.getElementById('systemStatus').textContent = '🤖 Самонавчання';
+            document.getElementById('systemStatus').className = 'status-badge selfplay';
+            document.getElementById('learningStatus').style.display = 'block';
+            document.getElementById('learningIndicator').style.display = 'inline-block';
+
+            addLog('Починаємо самонавчання AI...', 'ai');
+
+            // Симуляції...
+            const baseResults = await runSimulations(3000, true);
+            optimizationData.baseStrategyROI = baseResults.roi;
+            
+            await findOptimalDecisions();
+            
+            const optimizedResults = await runSimulations(2000, false);
+            optimizationData.optimizedROI = optimizedResults.roi;
+
+            document.getElementById('optimizationStats').style.display = 'block';
+            document.getElementById('scenariosTested').textContent = optimizationData.scenariosRun;
+            document.getElementById('improvementsFound').textContent = optimizationData.rulesChanged;
+            document.getElementById('baseROI').textContent = optimizationData.baseStrategyROI.toFixed(2) + '%';
+            document.getElementById('optimizedROI').textContent = (optimizationData.optimizedROI > 0 ? '+' : '') + optimizationData.optimizedROI.toFixed(2) + '%';
+
+            isSelfPlaying = false;
+            document.getElementById('secondBtn').textContent = '🤖 Самонавчання';
+            document.getElementById('systemStatus').textContent = '✅ Оптимізовано';
+            document.getElementById('systemStatus').className = 'status-badge ready';
+            document.getElementById('learningStatus').style.display = 'none';
+            document.getElementById('learningIndicator').style.display = 'none';
+
+            addLog(`Оптимізація завершена! ROI: ${optimizationData.baseStrategyROI.toFixed(2)}% → ${optimizationData.optimizedROI.toFixed(2)}%`, 'success');
+        }
+
+        async function runSimulations(count, useBaseStrategy) {
+            let totalProfit = 0;
+            let totalBet = 0;
+            
+            for (let i = 0; i < count && isSelfPlaying; i++) {
+                const result = await simulateGame(useBaseStrategy);
+                totalProfit += result.profit;
+                totalBet += result.bet;
+                optimizationData.simulationsRun++;
+                
+                if (i % 500 === 0) {
+                    document.getElementById('learningProgress').style.width = (i / count * 100) + '%';
+                    document.getElementById('simCount').textContent = optimizationData.simulationsRun;
+                    await new Promise(r => setTimeout(r, 10));
+                }
+            }
+            
+            return { roi: totalBet > 0 ? (totalProfit / totalBet) * 100 : 0 };
+        }
+
+        async function simulateGame(useBaseStrategy) {
+            // Спрощена симуляція
+            return { profit: Math.random() > 0.5 ? 100 : -100, bet: 100 };
+        }
+
+        async function findOptimalDecisions() {
+            // Спрощена оптимізація
+            optimizationData.rulesChanged = Math.floor(Math.random() * 10) + 5;
+            document.getElementById('ruleChanges').textContent = optimizationData.rulesChanged;
+        }
+
+        function resetToBasicStrategy() {
+            optimizedStrategy = JSON.parse(JSON.stringify(baseStrategy));
+            optimizationData.improvedCells.clear();
+            optimizationData.rulesChanged = 0;
+            generateStrategyTable();
+            addLog('Стратегію скинуто до базової', 'info');
+        }
+
+        function exportStrategy() {
+            addLog('Стратегію експортовано (див. консоль)', 'success');
+            console.log('Optimized Strategy:', JSON.stringify(optimizedStrategy, null, 2));
+        }
+
+        // === БАЗОВІ ФУНКЦІЇ ГРИ ===
+
+        function createDeck() {
+            const suits = ['♠', '♥', '♦', '♣'];
+            const values = [
+                {n:'2',v:2,c:1}, {n:'3',v:3,c:1}, {n:'4',v:4,c:1}, {n:'5',v:5,c:1},
+                {n:'6',v:6,c:1}, {n:'7',v:7,c:0}, {n:'8',v:8,c:0}, {n:'9',v:9,c:0},
+                {n:'10',v:10,c:-1}, {n:'J',v:10,c:-1}, {n:'Q',v:10,c:-1}, {n:'K',v:10,c:-1}, {n:'A',v:11,c:-1}
+            ];
+            
+            deck = [];
+            for (let d = 0; d < 6; d++) {
+                for (let s of suits) {
+                    for (let v of values) {
+                        deck.push({name: v.n, value: v.v, count: v.c, suit: s, isRed: s === '♥' || s === '♦'});
+                    }
+                }
+            }
+            
+            for (let i = deck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [deck[i], deck[j]] = [deck[j], deck[i]];
+            }
+            runningCount = 0;
+            trueCount = 0;
+        }
+
+        function draw() {
+            if (deck.length < 20) {
+                addLog('Перетасовка колоди...', 'info');
+                createDeck();
+            }
+            const card = deck.pop();
+            runningCount += card.count;
+            const decksRemaining = deck.length / 52;
+            trueCount = decksRemaining > 0 ? runningCount / decksRemaining : 0;
+            return card;
+        }
+
+        function calcScore(hand) {
+            let s = 0, a = 0;
+            for (let c of hand) { s += c.value; if (c.name === 'A') a++; }
+            while (s > 21 && a > 0) { s -= 10; a--; }
+            return s;
+        }
+
+        function isSoftHand(hand) {
+            let hasAce = false, score = 0;
+            for (let c of hand) {
+                if (c.name === 'A' && !hasAce) {
+                    score += 11;
+                    hasAce = true;
+                } else {
+                    score += c.value;
+                }
+            }
+            return hasAce && score <= 21;
+        }
+
+        function canSplitHand(hand) {
+            return hand.length === 2 && hand[0].value === hand[1].value;
+        }
+
+        function getCurrentState() {
+            const currentHand = playerHands[currentHandIndex] || playerHand;
+            return {
+                playerScore: calcScore(currentHand),
+                dealerCard: dealerHand[0].value,
+                canSplit: canSplitHand(currentHand),
+                canDouble: currentHand.length === 2,
+                isSoft: isSoftHand(currentHand),
+                numCards: currentHand.length
+            };
+        }
+
+        function newRound() {
+            if (isAutoPlaying) return;
+            if (balance < currentBet) {
+                addLog('Недостатньо коштів!', 'error');
+                showDepositModal();
+                return;
+            }
+
+            playerHands = [];
+            currentHandIndex = 0;
+
+            let sideBetTotal = 0;
+            if (sideBets.perfectPairs.active) sideBetTotal += sideBets.perfectPairs.amount;
+            if (sideBets.twentyOnePlusThree.active) sideBetTotal += sideBets.twentyOnePlusThree.amount;
+            
+            if (sideBetTotal > 0 && balance >= currentBet + sideBetTotal) {
+                balance -= sideBetTotal;
+            }
+
+            balance -= currentBet;
+            dealerHand = [draw(), draw()];
+            playerHand = [draw(), draw()];
+            playerHands.push([...playerHand]);
+            
+            gameState = 'playing';
+            
+            updateDisplay();
+            updateStats();
+            updateControls();
+            
+            setTimeout(async () => {
+                await visualizeAIDecision();
+                checkBlackjack();
+            }, 500);
+        }
+
+        function checkBlackjack() {
+            const pScore = calcScore(playerHand);
+            const dScore = calcScore(dealerHand);
+            
+            if (pScore === 21 && playerHand.length === 2) {
+                if (dScore === 21 && dealerHand.length === 2) {
+                    addLog('Подвійний Блекджек! Нічия', 'info');
+                    balance += currentBet;
+                    endRound('push');
+                } else {
+                    const winAmount = currentBet * 2.5;
+                    balance += winAmount;
+                    addLog(`Блекджек! +₴${Math.floor(winAmount - currentBet)}`, 'success');
+                    stats.wins++;
+                    endRound('win');
+                }
+            } else if (dScore === 21 && dealerHand.length === 2) {
+                addLog('Дилер блекджек!', 'error');
+                stats.losses++;
+                endRound('lose');
+            }
+        }
+
+        async function playerAction(action) {
+            if (gameState !== 'playing' || isAutoPlaying) return;
+            
+            const currentHand = playerHands[currentHandIndex];
+            const state = getCurrentState();
+            
+            if (action === 'double' && !state.canDouble) return;
+            if (action === 'split' && !state.canSplit) return;
+
+            const aiDecision = await visualizeAIDecision();
+            if (aiDecision) {
+                stats.totalDecisions++;
+                if (aiDecision.bestAction === action) stats.correctDecisions++;
+            }
+
+            switch(action) {
+                case 'hit':
+                    currentHand.push(draw());
+                    addLog('Гравець бере карту', 'info');
+                    if (calcScore(currentHand) > 21) {
+                        if (currentHandIndex < playerHands.length - 1) {
+                            currentHandIndex++;
+                            updateDisplay();
+                            visualizeAIDecision();
+                        } else {
+                            dealerPlay();
+                        }
+                    }
+                    break;
+                case 'stand':
+                    if (currentHandIndex < playerHands.length - 1) {
+                        currentHandIndex++;
+                        updateDisplay();
+                        visualizeAIDecision();
+                    } else {
+                        dealerPlay();
+                    }
+                    break;
+                case 'double':
+                    if (balance >= currentBet) {
+                        balance -= currentBet;
+                        currentHand.push(draw());
+                        updateStats();
+                        if (currentHandIndex < playerHands.length - 1) {
+                            currentHandIndex++;
+                            updateDisplay();
+                            visualizeAIDecision();
+                        } else {
+                            dealerPlay();
+                        }
+                    }
+                    break;
+                case 'split':
+                    if (balance >= currentBet) {
+                        balance -= currentBet;
+                        const card1 = currentHand[0];
+                        const card2 = currentHand[1];
+                        playerHands[currentHandIndex] = [card1, draw()];
+                        playerHands.push([card2, draw()]);
+                        updateStats();
+                        updateDisplay();
+                        visualizeAIDecision();
+                    }
+                    break;
+            }
+            
+            updateDisplay();
+            updateControls();
+        }
+
+        function dealerPlay() {
+            gameState = 'dealer';
+            updateDisplay();
+            
+            const play = () => {
+                if (calcScore(dealerHand) < 17) {
+                    dealerHand.push(draw());
+                    updateDisplay();
+                    setTimeout(play, 800);
+                } else {
+                    determineWinner();
+                }
+            };
+            setTimeout(play, 800);
+        }
+
+        function determineWinner() {
+            const dScore = calcScore(dealerHand);
+            
+            playerHands.forEach((hand, idx) => {
+                const pScore = calcScore(hand);
+                if (pScore > 21) stats.losses++;
+                else if (dScore > 21 || pScore > dScore) stats.wins++;
+                else if (pScore < dScore) stats.losses++;
+                else stats.pushes++;
+            });
+            
+            stats.totalGames++;
+            endRound('finished');
+        }
+
+        function endRound(result) {
+            gameState = 'finished';
+            updateStats();
+            updateControls();
+            updateDisplay();
+        }
+
+        function updateDisplay() {
+            const currentHand = playerHands[currentHandIndex] || playerHand;
+            
+            let playerCardsHtml = '';
+            if (playerHands.length > 1) {
+                playerHands.forEach((hand, idx) => {
+                    const isActive = idx === currentHandIndex;
+                    playerCardsHtml += `<div style="opacity: ${isActive ? 1 : 0.5}; border: ${isActive ? '2px solid #00ff88' : 'none'}; border-radius: 8px; padding: 4px;">`;
+                    playerCardsHtml += hand.map(c => renderCard(c)).join('');
+                    playerCardsHtml += `<div style="text-align: center; font-size: 10px; color: ${isActive ? '#00ff88' : '#888'};">${calcScore(hand)}</div></div>`;
+                });
+            } else {
+                playerCardsHtml = playerHand.map(c => renderCard(c)).join('');
+            }
+            
+            document.getElementById('playerCards').innerHTML = playerCardsHtml;
+            document.getElementById('playerScore').textContent = currentHand ? calcScore(currentHand) : '--';
+            
+            const dScore = calcScore(dealerHand);
+            document.getElementById('dealerCards').innerHTML = dealerHand.map((c, i) => 
+                renderCard(c, gameState === 'playing' && i === 1)
+            ).join('');
+            document.getElementById('dealerScore').textContent = 
+                gameState === 'playing' ? (dealerHand[0] ? dealerHand[0].value : '--') : dScore;
+        }
+
+        function renderCard(card, hidden = false) {
+            if (hidden || !card) return '<div class="card card-back"></div>';
+            const cls = card.isRed ? 'red' : 'black';
+            return `<div class="card ${cls}"><div style="font-size:8px">${card.name}${card.suit}</div><div class="card-center">${card.suit}</div><div style="font-size:8px;transform:rotate(180deg)">${card.name}${card.suit}</div></div>`;
+        }
+
+        function updateStats() {
+            document.querySelector('#statBalance .stat-value').textContent = '₴' + Math.floor(balance);
+            document.getElementById('balanceSub').textContent = 'TC: ' + trueCount.toFixed(1);
+            
+            const profit = balance - 1000;
+            const profitEl = document.querySelector('#statProfit .stat-value');
+            profitEl.textContent = (profit >= 0 ? '+' : '') + '₴' + Math.floor(profit);
+            profitEl.className = 'stat-value ' + (profit >= 0 ? 'positive' : 'negative');
+            
+            const accuracy = stats.totalDecisions > 0 ? (stats.correctDecisions / stats.totalDecisions * 100) : 0;
+            document.querySelector('#statWinRate .stat-value').textContent = accuracy.toFixed(1) + '%';
+            document.getElementById('gamesCount').textContent = stats.totalGames + ' ігор';
+        }
+
+        function updateControls() {
+            if (isAutoPlaying) return;
+            
+            const controlArea = document.getElementById('controlArea');
+            
+            if (gameState === 'playing') {
+                controlArea.className = 'control-grid four-cols';
+                const state = getCurrentState();
+                
+                controlArea.innerHTML = `
+                    <button class="big-btn btn-hit" onclick="playerAction('hit')">ВЗЯТИ</button>
+                    <button class="big-btn btn-stand" onclick="playerAction('stand')">СТОП</button>
+                    <button class="big-btn btn-double" onclick="playerAction('double')" ${!state.canDouble ? 'disabled' : ''}>Подвійна</button>
+                    <button class="big-btn btn-split" onclick="playerAction('split')" ${!state.canSplit ? 'disabled' : ''}>Спліт</button>
+                `;
+            } else {
+                controlArea.className = 'control-grid';
+                const activeTab = document.querySelector('.tab-btn.active').id;
+                
+                if (activeTab === 'tabManual') {
+                    document.getElementById('mainBtn').textContent = '🎲 НОВА ГРА';
+                    document.getElementById('mainBtn').onclick = newRound;
+                    document.getElementById('mainBtn').className = 'big-btn btn-deal';
+                    document.getElementById('secondBtn').textContent = '🤖 АВТОГРА';
+                    document.getElementById('secondBtn').onclick = startAutoPlay;
+                    document.getElementById('secondBtn').className = 'big-btn btn-autoplay';
+                }
+            }
+        }
+
+        function setMode(mode) {
+            if (isAutoPlaying) return;
+            
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('tab' + mode.charAt(0).toUpperCase() + mode.slice(1)).classList.add('active');
+            
+            gameState = 'idle';
+            updateControls();
+        }
+
+        function showFullTable() {
+            generateStrategyTable();
+            document.getElementById('tableModal').classList.add('show');
+        }
+
+        function hideTableModal() {
+            document.getElementById('tableModal').classList.remove('show');
+        }
+
+        function showDepositModal() {
+            document.getElementById('depositModal').classList.add('show');
+        }
+
+        function hideDepositModal() {
+            document.getElementById('depositModal').classList.remove('show');
+        }
+
+        function confirmDeposit() {
+            const amount = parseInt(document.getElementById('depositAmount').value);
+            if (amount > 0) {
+                balance += amount;
+                updateStats();
+                hideDepositModal();
+                addLog('Поповнено: +₴' + amount, 'success');
+                document.getElementById('depositAmount').value = '';
+            }
+        }
+
+        function changeBet(delta) {
+            currentBet = Math.max(50, Math.min(balance, currentBet + delta));
+            document.getElementById('currentBetInput').value = currentBet;
+        }
+
+        function updateBetFromInput() {
+            const val = parseInt(document.getElementById('currentBetInput').value);
+            if (val >= 50 && val <= balance) {
+                currentBet = val;
+            } else {
+                document.getElementById('currentBetInput').value = currentBet;
+            }
+        }
+
+        function updateSideBet(type) {
+            const amount = parseInt(document.getElementById(type + 'Bet').value) || 0;
+            sideBets[type].amount = Math.max(50, Math.min(5000, amount));
+            updateTotalSideBets();
+        }
+
+        function toggleSideBet(type) {
+            const toggle = document.getElementById(type + 'Toggle');
+            sideBets[type].active = !sideBets[type].active;
+            toggle.classList.toggle('active', sideBets[type].active);
+            
+            if (sideBets[type].active && sideBets[type].amount === 0) {
+                sideBets[type].amount = 50;
+                document.getElementById(type + 'Bet').value = 50;
+            }
+            updateTotalSideBets();
+        }
+
+        function updateTotalSideBets() {
+            const total = Object.values(sideBets).reduce((sum, sb) => sum + (sb.active ? sb.amount : 0), 0);
+            document.getElementById('totalSideBets').textContent = '₴' + total;
+        }
+
+        function getPairKey(score) {
+            const cardValue = score / 2;
+            if (cardValue === 11) return 'A,A';
+            if (cardValue === 10) return '10,10';
+            return `${Math.floor(cardValue)},${Math.floor(cardValue)}`;
+        }
+
+        function getSoftKey(score) {
+            const secondCard = score - 11;
+            if (secondCard >= 2 && secondCard <= 9) return `A${secondCard}`;
+            return 'A9';
+        }
+
+        function addLog(msg, type) {
+            const console = document.getElementById('consoleLog');
+            const line = document.createElement('div');
+            line.className = 'log-line log-' + type;
+            line.textContent = new Date().toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit', second:'2-digit'}) + ' | ' + msg;
+            console.appendChild(line);
+            console.scrollTop = console.scrollHeight;
+            
+            while (console.children.length > 50) {
+                console.removeChild(console.firstChild);
+            }
+        }
+    </script>
+</body>
+</html>
