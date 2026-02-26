@@ -3,8 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Blackjack AI Pro - Strategy Hunter</title>
+    <title>Blackjack AI Pro - Firebase Integration</title>
+    <!-- TensorFlow -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <style>
         * {
             margin: 0;
@@ -15,7 +21,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(180deg, #0a1f2e 0%, #0b2b3b 100%);
+            background: linear-gradient(180deg, #0a1f2f 0%, #0b2b3b 100%);
             height: 100vh;
             height: 100dvh;
             color: #fff;
@@ -29,12 +35,12 @@
             height: 100%;
             display: flex;
             flex-direction: column;
-            padding: 4px;
-            gap: 3px;
+            padding: 6px;
+            gap: 4px;
             max-width: 430px;
             margin: 0 auto;
-            background: rgba(0,0,0,0.2);
-            border-radius: 16px;
+            background: rgba(0,30,30,0.3);
+            border-radius: 24px;
         }
 
         .loading-screen {
@@ -43,7 +49,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: #0a1f2e;
+            background: #0a1f2f;
             z-index: 9999;
             display: flex;
             flex-direction: column;
@@ -55,9 +61,9 @@
         .loading-screen.hidden { display: none; }
 
         .loading-spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid rgba(78,205,196,0.2);
+            width: 44px;
+            height: 44px;
+            border: 4px solid rgba(78,205,196,0.2);
             border-top-color: #4ecdc4;
             border-radius: 50%;
             animation: spin 1s linear infinite;
@@ -65,20 +71,20 @@
 
         @keyframes spin { to { transform: rotate(360deg); } }
 
+        /* Шапка */
         .header {
-            background: rgba(10, 31, 46, 0.95);
-            padding: 8px 12px;
-            border-radius: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 8px 14px;
+            border-radius: 30px;
             border: 1px solid #4ecdc4;
             display: flex;
             justify-content: space-between;
             align-items: center;
             backdrop-filter: blur(5px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
 
         .header-title { 
-            font-size: 15px; 
+            font-size: 16px; 
             font-weight: 700; 
             background: linear-gradient(135deg, #4ecdc4, #ffd700);
             -webkit-background-clip: text;
@@ -86,29 +92,53 @@
         }
 
         .status-badge {
-            padding: 4px 10px;
-            border-radius: 20px;
+            padding: 4px 12px;
+            border-radius: 30px;
             font-size: 11px;
             font-weight: 600;
             background: #ff6b6b;
+            color: #fff;
         }
 
         .status-badge.ready { background: #4ecdc4; color: #000; }
         .status-badge.training { background: #ffd700; color: #000; animation: pulse 1s infinite; }
-        .status-badge.selfplay { background: #00ff88; color: #000; animation: pulse 0.5s infinite; }
-        .status-badge.autoplay { background: #ff6b6b; color: #fff; animation: pulse 0.3s infinite; }
-        .status-badge.optimizing { background: #bc13fe; color: #fff; animation: pulse 0.8s infinite; }
+        .status-badge.autoplay { background: #ff6b6b; animation: pulse 0.3s infinite; }
+        .status-badge.learning { background: #bc13fe; animation: pulse 0.5s infinite; }
+        .status-badge.saving { background: #00ff88; color: #000; animation: pulse 0.5s infinite; }
 
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
+        /* Firebase статус */
+        .firebase-status {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 9px;
+            background: rgba(0,0,0,0.3);
+            padding: 3px 8px;
+            border-radius: 20px;
+            margin-left: 5px;
+        }
+
+        .firebase-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ff6b6b;
+        }
+
+        .firebase-dot.connected {
+            background: #00ff88;
+            animation: pulse 2s infinite;
+        }
+
         /* Візуалізація колоди */
         .deck-visualization {
-            background: rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(78,205,196,0.5);
-            border-radius: 16px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid #4ecdc4;
+            border-radius: 20px;
             padding: 8px 12px;
             backdrop-filter: blur(4px);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
 
         .deck-header {
@@ -129,7 +159,7 @@
         }
 
         .deck-cards-left {
-            background: rgba(78,205,196,0.15);
+            background: rgba(78,205,196,0.2);
             padding: 3px 8px;
             border-radius: 20px;
             font-size: 13px;
@@ -140,15 +170,14 @@
         .deck-indicator {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
             flex: 1;
-            margin-left: 8px;
         }
 
         .temperature-bar {
             flex: 1;
             height: 6px;
-            background: rgba(255,255,255,0.15);
+            background: rgba(255,255,255,0.2);
             border-radius: 3px;
             overflow: hidden;
         }
@@ -163,9 +192,8 @@
         .temperature-label {
             font-size: 10px;
             font-weight: 600;
-            min-width: 55px;
+            min-width: 60px;
             text-align: right;
-            color: #ffd700;
         }
 
         .deck-cards-preview {
@@ -174,28 +202,22 @@
             margin-top: 6px;
             padding: 4px;
             background: rgba(0,0,0,0.3);
-            border-radius: 10px;
+            border-radius: 12px;
             overflow-x: auto;
-            scrollbar-width: none;
-        }
-
-        .deck-cards-preview::-webkit-scrollbar {
-            display: none;
         }
 
         .mini-card {
-            width: 20px;
-            height: 28px;
+            width: 22px;
+            height: 30px;
             background: linear-gradient(135deg, #fff, #f0f0f0);
-            border-radius: 3px;
-            font-size: 9px;
+            border-radius: 4px;
+            font-size: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: #000;
             flex-shrink: 0;
             font-weight: 700;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
 
         .mini-card.red { color: #d32f2f; }
@@ -204,19 +226,17 @@
             border: 1px solid #ffd700;
         }
 
+        /* AI панель */
         .ai-viz-panel {
-            background: rgba(0, 0, 0, 0.3);
+            background: rgba(0, 0, 0, 0.4);
             border: 1px solid #00ff88;
-            border-radius: 16px;
+            border-radius: 20px;
             padding: 10px;
-            backdrop-filter: blur(4px);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
 
         .ai-viz-title {
             font-size: 11px;
             color: #00ff88;
-            text-transform: uppercase;
             font-weight: 600;
             margin-bottom: 8px;
             display: flex;
@@ -233,32 +253,23 @@
 
         .decision-cell {
             padding: 8px 2px;
-            border-radius: 12px;
+            border-radius: 14px;
             text-align: center;
             font-size: 10px;
             font-weight: 700;
             transition: all 0.3s;
-            position: relative;
             cursor: pointer;
             border: 1px solid rgba(255,255,255,0.2);
         }
 
-        .decision-cell.hit { background: #2e7d32; color: #fff; }
-        .decision-cell.stand { background: #c62828; color: #fff; }
-        .decision-cell.double { background: #6a1b9a; color: #fff; }
+        .decision-cell.hit { background: #2e7d32; }
+        .decision-cell.stand { background: #c62828; }
+        .decision-cell.double { background: #6a1b9a; }
         .decision-cell.split { background: #f9a825; color: #000; }
         .decision-cell.selected {
-            box-shadow: 0 0 15px currentColor;
+            box-shadow: 0 0 15px #00ff88;
             transform: scale(1.05);
             border: 2px solid #fff;
-        }
-        .decision-cell.ai-thinking {
-            animation: aiPulse 0.5s infinite;
-        }
-
-        @keyframes aiPulse {
-            0%, 100% { box-shadow: 0 0 5px #00ff88; }
-            50% { box-shadow: 0 0 20px #00ff88; }
         }
 
         .decision-cell .prob {
@@ -269,10 +280,9 @@
 
         .reasoning-box {
             background: rgba(0,255,136,0.1);
-            border-radius: 12px;
+            border-radius: 14px;
             padding: 8px;
             font-size: 10px;
-            margin-top: 6px;
             border: 1px solid rgba(0,255,136,0.3);
         }
 
@@ -289,8 +299,7 @@
             border-bottom: 1px solid rgba(255,255,255,0.1);
         }
 
-        .factor-row:last-child { border-bottom: none; }
-
+        /* Статистика */
         .stats-dashboard {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -298,31 +307,25 @@
         }
 
         .stat-card {
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 16px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 18px;
             padding: 8px 6px;
             text-align: center;
-            border: 1px solid rgba(255,215,0,0.3);
+            border: 1px solid #ffd700;
             position: relative;
             backdrop-filter: blur(4px);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
-
-        .stat-card.profit { border-color: #00ff88; }
-        .stat-card.loss { border-color: #ff6b6b; }
 
         .stat-title { 
             font-size: 9px; 
-            color: #888; 
+            color: #aaa; 
             text-transform: uppercase; 
-            letter-spacing: 0.5px;
         }
         
         .stat-value { 
             font-size: 16px; 
             font-weight: 700; 
             margin-top: 2px;
-            line-height: 1.2;
         }
         
         .stat-value.positive { color: #00ff88; }
@@ -341,7 +344,7 @@
             right: 4px;
             width: 20px;
             height: 20px;
-            background: linear-gradient(135deg, #00ff88, #00cc6a);
+            background: #00ff88;
             border: none;
             border-radius: 50%;
             color: #000;
@@ -351,141 +354,114 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.2s;
-            z-index: 10;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
 
-        .deposit-btn:active { transform: scale(0.9); }
-
+        /* Автогра панель */
         .auto-play-panel {
-            background: rgba(255,107,107,0.15);
-            border: 1px solid #ff6b6b;
-            border-radius: 16px;
-            padding: 10px;
+            background: rgba(255,107,107,0.2);
+            border: 2px solid #ff6b6b;
+            border-radius: 20px;
+            padding: 12px;
             backdrop-filter: blur(4px);
+            display: none;
+            margin-bottom: 4px;
         }
 
         .auto-play-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
         }
 
         .auto-play-title {
             color: #ff6b6b;
-            font-size: 11px;
+            font-size: 13px;
             font-weight: 700;
-            text-transform: uppercase;
         }
 
         .auto-play-status {
-            font-size: 10px;
+            font-size: 12px;
             color: #ff6b6b;
             animation: blink 1s infinite;
-        }
-
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
+            font-weight: 600;
         }
 
         .auto-play-stats {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 6px;
-            font-size: 10px;
+            gap: 8px;
+            font-size: 11px;
+            margin-bottom: 10px;
         }
 
         .auto-stat {
-            background: rgba(0,0,0,0.3);
-            padding: 6px;
-            border-radius: 10px;
+            background: rgba(0,0,0,0.4);
+            padding: 8px 4px;
+            border-radius: 14px;
             text-align: center;
         }
 
         .auto-stat-value {
             color: #ff6b6b;
             font-weight: 700;
-            font-size: 12px;
+            font-size: 14px;
         }
 
         .auto-controls {
             display: flex;
-            gap: 6px;
-            margin-top: 8px;
+            gap: 8px;
+            margin-top: 10px;
         }
 
         .auto-btn {
             flex: 1;
-            padding: 8px;
+            padding: 10px;
             border: none;
-            border-radius: 10px;
-            font-size: 10px;
+            border-radius: 14px;
+            font-size: 11px;
             font-weight: 700;
             cursor: pointer;
-            transition: all 0.2s;
         }
 
-        .auto-btn-start {
-            background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
-            color: #fff;
-        }
-
-        .auto-btn-stop {
-            background: linear-gradient(135deg, #ffd700, #ffed4e);
-            color: #000;
-        }
-
-        .auto-btn:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-        }
+        .auto-btn-stop { background: #ffd700; color: #000; }
+        .auto-btn-pause { background: #4ecdc4; color: #000; }
 
         .speed-control {
             display: flex;
             align-items: center;
-            gap: 6px;
-            margin-top: 6px;
-        }
-
-        .speed-label {
-            font-size: 9px;
-            color: #aaa;
+            gap: 8px;
+            margin-top: 8px;
         }
 
         .speed-slider {
             flex: 1;
-            height: 4px;
-            -webkit-appearance: none;
+            height: 6px;
             background: rgba(255,255,255,0.2);
-            border-radius: 2px;
-            outline: none;
+            border-radius: 3px;
+            -webkit-appearance: none;
         }
 
         .speed-slider::-webkit-slider-thumb {
             -webkit-appearance: none;
-            width: 14px;
-            height: 14px;
+            width: 16px;
+            height: 16px;
             background: #ff6b6b;
             border-radius: 50%;
             cursor: pointer;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
 
+        /* Побічні ставки */
         .side-bets-panel {
             background: rgba(255,107,107,0.1);
             border: 1px solid #ff6b6b;
-            border-radius: 16px;
+            border-radius: 20px;
             padding: 10px;
         }
 
-        .side-bets-panel .panel-title { 
+        .panel-title { 
             color: #ff6b6b; 
             font-size: 11px; 
             font-weight: 600;
-            text-transform: uppercase; 
             margin-bottom: 8px; 
             display: flex; 
             justify-content: space-between; 
@@ -495,9 +471,9 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 6px 8px;
+            padding: 6px 10px;
             background: rgba(0,0,0,0.3);
-            border-radius: 10px;
+            border-radius: 14px;
             margin-bottom: 6px;
             font-size: 11px;
         }
@@ -509,7 +485,6 @@
             border-radius: 11px;
             position: relative;
             cursor: pointer;
-            transition: all 0.2s;
         }
 
         .side-bet-toggle.active { background: #ff6b6b; }
@@ -523,76 +498,61 @@
             top: 2px;
             left: 2px;
             transition: all 0.2s;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         .side-bet-toggle.active::after { left: 20px; }
 
         .side-bet-amount {
-            width: 50px;
+            width: 55px;
             padding: 4px 6px;
             background: rgba(0,0,0,0.5);
             border: 1px solid #ff6b6b;
-            border-radius: 8px;
+            border-radius: 10px;
             color: #fff;
             font-size: 11px;
             text-align: center;
         }
 
+        /* Панель ставок */
         .betting-panel {
             background: rgba(255,215,0,0.1);
             border: 1px solid #ffd700;
-            border-radius: 16px;
+            border-radius: 20px;
             padding: 10px;
             display: flex;
-            align-items: center;
             justify-content: space-between;
-        }
-
-        .betting-panel .panel-title { 
-            color: #ffd700; 
-            font-size: 11px; 
-            font-weight: 600;
-            text-transform: uppercase; 
+            align-items: center;
         }
 
         .bet-controls {
             display: flex;
-            gap: 6px;
+            gap: 8px;
             align-items: center;
         }
 
         .bet-btn {
-            width: 32px;
-            height: 32px;
+            width: 34px;
+            height: 34px;
             border: none;
-            border-radius: 10px;
+            border-radius: 12px;
             background: rgba(255,215,0,0.2);
             color: #ffd700;
-            font-size: 16px;
+            font-size: 18px;
             font-weight: 700;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .bet-btn:active {
-            background: rgba(255,215,0,0.4);
-            transform: scale(0.95);
         }
 
         .bet-input {
-            width: 70px;
+            width: 75px;
             padding: 6px;
             background: rgba(0,0,0,0.5);
             border: 1px solid #ffd700;
-            border-radius: 8px;
+            border-radius: 10px;
             color: #fff;
             text-align: center;
             font-size: 13px;
-            font-weight: 600;
         }
 
+        /* Ігрова зона */
         .game-area {
             flex: 1;
             display: flex;
@@ -602,15 +562,13 @@
         }
 
         .game-box {
-            background: rgba(0, 40, 20, 0.4);
-            border-radius: 20px;
+            background: rgba(0, 40, 20, 0.5);
+            border-radius: 24px;
             padding: 10px;
-            border: 1px solid rgba(255,215,0,0.3);
+            border: 1px solid #ffd700;
             flex: 1;
             display: flex;
             flex-direction: column;
-            backdrop-filter: blur(4px);
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.3);
         }
 
         .box-header {
@@ -621,20 +579,18 @@
         }
 
         .box-title { 
-            font-size: 12px; 
+            font-size: 13px; 
             color: #ffd700; 
             font-weight: 700;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
         }
         
         .score-pill {
             background: #ffd700;
             color: #000;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 13px;
+            padding: 4px 14px;
+            border-radius: 30px;
+            font-size: 14px;
             font-weight: 700;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
 
         .cards-area {
@@ -644,37 +600,26 @@
             flex-wrap: wrap;
             flex: 1;
             align-items: center;
-            min-height: 70px;
+            min-height: 80px;
         }
 
         .card {
-            width: 48px;
-            height: 68px;
+            width: 52px;
+            height: 74px;
             background: #fff;
             border-radius: 8px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            padding: 4px;
-            font-size: 12px;
+            padding: 5px;
+            font-size: 13px;
             font-weight: 700;
-            animation: dealCard 0.3s ease-out;
             position: relative;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-            border: 1px solid rgba(255,215,0,0.3);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.4);
         }
 
-        @media (min-width: 380px) {
-            .card {
-                width: 56px;
-                height: 78px;
-                font-size: 14px;
-            }
-        }
-
-        @keyframes dealCard {
-            from { transform: translateY(-30px) rotateY(90deg); opacity: 0; }
-            to { transform: translateY(0) rotateY(0); opacity: 1; }
+        @media (max-width: 380px) {
+            .card { width: 46px; height: 66px; font-size: 11px; }
         }
 
         .card.red { color: #d32f2f; }
@@ -689,41 +634,38 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 22px;
+            font-size: 24px;
         }
 
+        /* Кнопки управління */
         .controls {
-            background: rgba(0, 0, 0, 0.4);
-            border-radius: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 24px;
             padding: 12px;
-            backdrop-filter: blur(4px);
-            border: 1px solid rgba(78,205,196,0.3);
+            border: 1px solid #4ecdc4;
         }
 
         .mode-tabs {
             display: flex;
             gap: 6px;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
         }
 
         .tab-btn {
             flex: 1;
             padding: 10px;
             border: none;
-            border-radius: 12px;
-            font-size: 11px;
+            border-radius: 16px;
+            font-size: 12px;
             font-weight: 700;
             cursor: pointer;
             background: rgba(255,255,255,0.1);
             color: #aaa;
-            backdrop-filter: blur(4px);
-            transition: all 0.2s;
         }
 
         .tab-btn.active { 
             background: #4ecdc4; 
             color: #000;
-            box-shadow: 0 4px 12px rgba(78,205,196,0.3);
         }
 
         .control-grid {
@@ -737,64 +679,45 @@
         }
 
         .big-btn {
-            padding: 14px 8px;
+            padding: 14px 6px;
             border: none;
-            border-radius: 14px;
+            border-radius: 18px;
             font-size: 13px;
             font-weight: 700;
             cursor: pointer;
-            transition: all 0.2s;
             box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-            letter-spacing: 0.5px;
         }
 
-        .big-btn:active {
-            transform: translateY(2px);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
+        .big-btn:active { transform: translateY(2px); }
+        .big-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        .big-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-
-        .btn-train { background: linear-gradient(135deg, #bc13fe, #9c27b0); color: #fff; }
-        .btn-selfplay { background: linear-gradient(135deg, #00ff88, #00cc6a); color: #000; }
-        .btn-autoplay { background: linear-gradient(135deg, #ff6b6b, #ee5a6f); color: #fff; animation: glow 2s infinite; }
-        .btn-stop { background: linear-gradient(135deg, #ffd700, #ffed4e); color: #000; }
-        .btn-deal { background: linear-gradient(135deg, #4ecdc4, #44a08d); color: #000; }
-        .btn-hit { background: linear-gradient(135deg, #4ecdc4, #44a08d); color: #000; }
-        .btn-stand { background: linear-gradient(135deg, #ffd700, #ffed4e); color: #000; }
-        .btn-double { background: linear-gradient(135deg, #9c27b0, #7b1fa2); color: #fff; }
-        .btn-split { background: linear-gradient(135deg, #ffeb3b, #fbc02d); color: #000; }
-        .btn-optimize { background: linear-gradient(135deg, #ff6b6b, #ee5a6f); color: #fff; }
-
-        @keyframes glow {
-            0%, 100% { box-shadow: 0 0 5px rgba(255,107,107,0.5); }
-            50% { box-shadow: 0 0 20px rgba(255,107,107,0.8); }
-        }
+        .btn-deal { background: #4ecdc4; color: #000; }
+        .btn-autoplay { background: #ff6b6b; color: #fff; }
+        .btn-hit { background: #4ecdc4; color: #000; }
+        .btn-stand { background: #ffd700; color: #000; }
+        .btn-double { background: #6a1b9a; color: #fff; }
+        .btn-split { background: #f9a825; color: #000; }
+        .btn-learn { background: #bc13fe; color: #fff; }
+        .btn-firebase { background: #FFA611; color: #000; }
 
         .console-log {
-            background: rgba(0,0,0,0.4);
-            border-radius: 12px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 16px;
             padding: 8px;
             font-size: 9px;
             max-height: 50px;
             overflow-y: auto;
-            font-family: 'Courier New', monospace;
-            border: 1px solid rgba(78,205,196,0.3);
+            border: 1px solid #4ecdc4;
         }
 
-        .log-line { 
-            padding: 2px 0; 
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-            white-space: nowrap;
-        }
-        
         .log-success { color: #00ff88; }
         .log-error { color: #ff6b6b; }
         .log-info { color: #4ecdc4; }
-        .log-ai { color: #00ff88; }
-        .log-autoplay { color: #ff6b6b; }
-        .log-optimize { color: #bc13fe; }
+        .log-autoplay { color: #ff6b6b; font-weight: bold; }
+        .log-learning { color: #bc13fe; font-weight: bold; }
+        .log-firebase { color: #FFA611; font-weight: bold; }
 
+        /* МОДАЛЬНІ ВІКНА */
         .modal {
             position: fixed;
             top: 0;
@@ -802,19 +725,22 @@
             width: 100%;
             height: 100%;
             background: rgba(0,0,0,0.95);
-            z-index: 1000;
+            z-index: 10000;
             display: none;
             align-items: center;
             justify-content: center;
             padding: 16px;
+            backdrop-filter: blur(5px);
         }
 
-        .modal.show { display: flex; }
+        .modal.show { 
+            display: flex !important; 
+        }
 
         .modal-content {
-            background: linear-gradient(135deg, #1a2f4b, #0d1f35);
-            padding: 20px;
-            border-radius: 24px;
+            background: linear-gradient(135deg, #1a3a3a, #0a2a2a);
+            padding: 24px 20px;
+            border-radius: 32px;
             border: 2px solid #4ecdc4;
             max-width: 95vw;
             width: 100%;
@@ -825,208 +751,284 @@
 
         .modal-title { 
             color: #4ecdc4; 
-            font-size: 18px; 
+            font-size: 20px; 
             font-weight: 700;
             margin-bottom: 16px; 
+            text-align: center;
         }
-        
-        .modal-btn { 
-            padding: 14px; 
-            background: #4ecdc4; 
-            color: #000; 
-            border: none; 
-            border-radius: 14px; 
-            font-weight: 700; 
-            cursor: pointer; 
-            width: 100%; 
-            margin-top: 12px;
+
+        /* База знань AI */
+        .knowledge-base {
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .scenario-card {
+            background: rgba(78,205,196,0.1);
+            border-left: 3px solid #4ecdc4;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .scenario-card.learned {
+            border-left: 3px solid #00ff88;
+            background: rgba(0,255,136,0.05);
+        }
+
+        .scenario-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .scenario-cards {
+            display: flex;
+            gap: 8px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+
+        .scenario-mini-card {
+            width: 35px;
+            height: 45px;
+            background: #fff;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 700;
+            color: #000;
+        }
+
+        .scenario-mini-card.red { color: #d32f2f; }
+
+        .decision-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+        }
+
+        .actual-decision {
+            border-right: 1px solid rgba(255,255,255,0.2);
+            padding-right: 10px;
+        }
+
+        .optimal-decision {
+            padding-left: 10px;
+        }
+
+        .outcome-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 9px;
+            font-weight: 700;
+        }
+
+        .outcome-win { background: #00ff88; color: #000; }
+        .outcome-loss { background: #ff6b6b; color: #fff; }
+        .outcome-push { background: #ffd700; color: #000; }
+
+        .win-rate-bar {
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+
+        .win-rate-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff6b6b, #ffd700, #00ff88);
+            transition: width 0.3s;
+        }
+
+        .learn-btn {
+            background: #bc13fe;
+            color: #fff;
+            border: none;
+            border-radius: 20px;
+            padding: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin: 15px 0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .stat-box {
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .stat-box-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #4ecdc4;
+        }
+
+        .training-progress {
+            background: rgba(188,19,254,0.1);
+            border-radius: 12px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #4ecdc4, #bc13fe);
+            transition: width 0.3s;
+        }
+
+        .loss-value {
+            font-family: monospace;
+            color: #ffd700;
+            font-size: 14px;
+        }
+
+        .table-controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .table-btn {
+            flex: 1;
+            padding: 10px 8px;
+            background: rgba(78,205,196,0.2);
+            border: 1px solid #4ecdc4;
+            border-radius: 20px;
+            color: #4ecdc4;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            min-width: 70px;
+        }
+
+        .table-btn.active {
+            background: #4ecdc4;
+            color: #000;
+        }
+
+        .modal-close-btn {
+            background: #4ecdc4;
+            color: #000;
+            border: none;
+            padding: 14px;
+            border-radius: 30px;
+            font-weight: 700;
             font-size: 15px;
-        }
-        
-        .modal-btn.secondary { 
-            background: rgba(255,255,255,0.1); 
-            color: #fff; 
-            border: 1px solid #4ecdc4; 
+            width: 100%;
+            cursor: pointer;
+            margin-top: 10px;
         }
 
         .deposit-input {
             width: 100%;
             padding: 14px;
-            background: rgba(0,0,0,0.3);
+            background: rgba(0,0,0,0.5);
             border: 1px solid #4ecdc4;
-            border-radius: 14px;
+            border-radius: 20px;
             color: #fff;
             font-size: 15px;
-            margin-bottom: 12px;
+            margin-bottom: 15px;
         }
 
-        .full-strategy-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 9px;
-        }
-
-        .full-strategy-table th, .full-strategy-table td {
-            border: 1px solid rgba(255,255,255,0.3);
-            padding: 6px 2px;
-            text-align: center;
-            min-width: 30px;
-        }
-
-        .full-strategy-table th {
-            background: rgba(255,215,0,0.3);
-            color: #ffd700;
-            font-size: 9px;
-        }
-
-        .full-strategy-table .header-col {
-            background: rgba(78,205,196,0.3);
-            color: #4ecdc4;
-            font-weight: bold;
-        }
-
-        .full-strategy-table .cell-h { background: #2e7d32; color: #fff; }
-        .full-strategy-table .cell-s { background: #c62828; color: #fff; }
-        .full-strategy-table .cell-d { background: #6a1b9a; color: #fff; }
-        .full-strategy-table .cell-sp { background: #f9a825; color: #000; }
-        .full-strategy-table .cell-optimized {
-            border: 2px solid #00ff88 !important;
-            box-shadow: 0 0 5px #00ff88;
-        }
-
-        .legend {
-            display: flex;
-            gap: 12px;
-            justify-content: center;
-            margin: 12px 0;
-            font-size: 10px;
-            flex-wrap: wrap;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .legend-box {
-            width: 16px;
-            height: 16px;
-            border-radius: 4px;
-        }
-
-        .table-controls {
-            display: flex;
-            gap: 6px;
-            margin-bottom: 12px;
-            flex-wrap: wrap;
-        }
-
-        .table-control-btn {
-            flex: 1;
-            padding: 8px 4px;
-            background: rgba(78,205,196,0.2);
-            border: 1px solid #4ecdc4;
-            border-radius: 10px;
-            color: #4ecdc4;
-            font-size: 10px;
-            cursor: pointer;
-            min-width: 60px;
-            font-weight: 600;
-        }
-
-        .table-control-btn:active { background: #4ecdc4; color: #000; }
-
-        .optimization-stats {
-            background: rgba(188, 19, 254, 0.1);
-            border: 1px solid #bc13fe;
-            border-radius: 12px;
-            padding: 12px;
-            margin-bottom: 12px;
-            font-size: 11px;
-        }
-
-        .optimization-stats-title {
-            color: #bc13fe;
-            font-weight: 700;
-            margin-bottom: 8px;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 6px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 3px;
-            overflow: hidden;
-            margin-top: 6px;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #00ff88, #4ecdc4);
-            transition: width 0.3s;
-        }
-
-        .ai-learning-status {
-            background: rgba(0, 255, 136, 0.1);
-            border: 1px solid #00ff88;
+        /* Firebase панель */
+        .firebase-panel {
+            background: rgba(255,166,17,0.1);
+            border: 1px solid #FFA611;
             border-radius: 12px;
             padding: 8px;
-            margin-top: 8px;
+            margin-top: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             font-size: 10px;
         }
 
-        .rule-change-indicator {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            background: #00ff88;
-            border-radius: 50%;
-            margin-left: 4px;
-            animation: blink 1s infinite;
+        .firebase-stats {
+            display: flex;
+            gap: 10px;
         }
 
-        .auto-action-indicator {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            background: #ff6b6b;
-            color: #fff;
-            font-size: 8px;
-            padding: 2px 4px;
-            border-radius: 4px;
-            font-weight: bold;
-            animation: pulse 0.5s infinite;
-        }
-
-        /* Адаптація для iPhone 12 */
-        @media (max-width: 390px) {
-            .game-wrapper { padding: 3px; }
-            .card { width: 42px; height: 62px; font-size: 11px; }
-            .card-center { font-size: 18px; }
-            .decision-cell { padding: 6px 2px; font-size: 9px; }
-            .stat-value { font-size: 15px; }
-            .big-btn { padding: 12px 6px; font-size: 12px; }
+        .firebase-stat {
+            display: flex;
+            align-items: center;
+            gap: 3px;
         }
     </style>
 </head>
 <body>
     <div class="loading-screen" id="loadingScreen">
         <div class="loading-spinner"></div>
-        <div style="color: #4ecdc4; font-size: 15px; font-weight: 600;">Завантаження AI...</div>
+        <div style="color: #4ecdc4; font-size: 16px;">Підключення до Firebase та завантаження AI...</div>
     </div>
 
     <div class="game-wrapper">
+        <!-- Шапка -->
         <div class="header">
             <div>
-                <div class="header-title">♠️ BLACKJACK PRO</div>
-                <div style="font-size: 9px; color: #aaa;">AI Strategy Hunter</div>
+                <div class="header-title">♠️ BLACKJACK FIREBASE</div>
+                <div style="font-size: 9px; color: #aaa; display: flex; align-items: center;">
+                    <span id="firebaseStatus" class="firebase-status">
+                        <span class="firebase-dot" id="firebaseDot"></span>
+                        <span id="firebaseText">Підключення...</span>
+                    </span>
+                </div>
             </div>
             <div class="status-badge" id="systemStatus">⏳ Завантаження</div>
         </div>
 
+        <!-- Firebase панель -->
+        <div class="firebase-panel">
+            <div class="firebase-stats">
+                <div class="firebase-stat">
+                    <span>🎮</span>
+                    <span id="firebaseGames">0</span>
+                </div>
+                <div class="firebase-stat">
+                    <span>🧠</span>
+                    <span id="firebaseScenarios">0</span>
+                </div>
+                <div class="firebase-stat">
+                    <span>📊</span>
+                    <span id="firebaseModels">0</span>
+                </div>
+            </div>
+            <div>
+                <button onclick="syncFromFirebase()" style="background: none; border: 1px solid #FFA611; color: #FFA611; border-radius: 12px; padding: 2px 8px; font-size: 9px; cursor: pointer;">↻</button>
+            </div>
+        </div>
+
         <!-- Візуалізація колоди -->
-        <div class="deck-visualization" id="deckVisualization">
+        <div class="deck-visualization">
             <div class="deck-header">
                 <div class="deck-title">
                     <span>🎴 КОЛОДА</span>
@@ -1036,7 +1038,7 @@
                     <div class="temperature-bar">
                         <div class="temperature-fill" id="deckTemperatureFill" style="width: 50%;"></div>
                     </div>
-                    <span class="temperature-label" id="deckTemperatureLabel">🔥 Гаряча</span>
+                    <span class="temperature-label" id="deckTemperatureLabel">⚪ Нейтральна</span>
                 </div>
             </div>
             <div class="deck-cards-preview" id="deckPreview">
@@ -1051,33 +1053,35 @@
             </div>
         </div>
 
+        <!-- Статистика -->
         <div class="stats-dashboard">
-            <div class="stat-card" id="statBalance">
+            <div class="stat-card">
                 <button class="deposit-btn" onclick="showDepositModal()">+</button>
                 <div class="stat-title">Баланс</div>
                 <div class="stat-value neutral" id="balanceValue">₴1000</div>
                 <div class="stat-sub" id="balanceSub">TC: 0.0</div>
             </div>
-            <div class="stat-card" id="statProfit">
+            <div class="stat-card">
                 <div class="stat-title">Прибуток</div>
                 <div class="stat-value neutral" id="profitValue">₴0</div>
                 <div class="stat-sub" id="profitPercent">0%</div>
             </div>
-            <div class="stat-card" id="statWinRate">
+            <div class="stat-card">
                 <div class="stat-title">Точність AI</div>
                 <div class="stat-value neutral" id="accuracyValue">0%</div>
                 <div class="stat-sub" id="gamesCount">0 ігор</div>
             </div>
         </div>
 
-        <div class="auto-play-panel" id="autoPlayPanel" style="display: none;">
+        <!-- Панель автогри -->
+        <div class="auto-play-panel" id="autoPlayPanel">
             <div class="auto-play-header">
                 <span class="auto-play-title">🤖 АВТОГРА AI</span>
                 <span class="auto-play-status" id="autoPlayStatus">Грає...</span>
             </div>
             <div class="auto-play-stats">
                 <div class="auto-stat">
-                    <div>Ігор</div>
+                    <div>Зіграно</div>
                     <div class="auto-stat-value" id="autoGames">0</div>
                 </div>
                 <div class="auto-stat">
@@ -1090,81 +1094,86 @@
                 </div>
             </div>
             <div class="speed-control">
-                <span class="speed-label">Швидкість:</span>
+                <span style="font-size: 11px;">Швидкість:</span>
                 <input type="range" class="speed-slider" id="autoSpeed" min="1" max="5" value="3">
-                <span class="speed-label" id="speedValue">3x</span>
+                <span style="font-size: 11px; min-width: 35px;" id="speedValue">3x</span>
             </div>
             <div class="auto-controls">
                 <button class="auto-btn auto-btn-stop" onclick="stopAutoPlay()">⏹ ЗУПИНИТИ</button>
-                <button class="auto-btn" onclick="toggleAutoPause()" id="pauseBtn" style="background: #4ecdc4; color: #000;">⏸ ПАУЗА</button>
+                <button class="auto-btn auto-btn-pause" onclick="toggleAutoPause()" id="pauseBtn">⏸ ПАУЗА</button>
             </div>
         </div>
 
-        <div class="ai-viz-panel" id="aiVizPanel">
+        <!-- AI панель -->
+        <div class="ai-viz-panel">
             <div class="ai-viz-title">
-                <span>🧠 AI Аналіз <span id="learningIndicator" class="rule-change-indicator" style="display: none;"></span></span>
-                <span style="font-size: 10px; color: #aaa;" id="vizStatus">Очікування...</span>
+                <span>🧠 AI Аналіз</span>
+                <span id="vizStatus">Очікування...</span>
             </div>
             
-            <div class="decision-grid" id="decisionGrid">
-                <div class="decision-cell hit" id="cell-hit" onclick="playerAction('hit')">
+            <div class="decision-grid">
+                <div class="decision-cell hit" id="cell-hit" onclick="if(!isAutoPlaying) playerAction('hit')">
                     HIT<br>ВЗЯТИ
                     <div class="prob" id="prob-hit">0%</div>
                 </div>
-                <div class="decision-cell stand" id="cell-stand" onclick="playerAction('stand')">
+                <div class="decision-cell stand" id="cell-stand" onclick="if(!isAutoPlaying) playerAction('stand')">
                     STAND<br>СТОП
                     <div class="prob" id="prob-stand">0%</div>
                 </div>
-                <div class="decision-cell double" id="cell-double" onclick="playerAction('double')">
+                <div class="decision-cell double" id="cell-double" onclick="if(!isAutoPlaying) playerAction('double')">
                     DOUBLE<br>ПОДВІЙНА
                     <div class="prob" id="prob-double">0%</div>
                 </div>
-                <div class="decision-cell split" id="cell-split" onclick="playerAction('split')">
+                <div class="decision-cell split" id="cell-split" onclick="if(!isAutoPlaying) playerAction('split')">
                     SPLIT<br>РОЗДІЛИТИ
                     <div class="prob" id="prob-split">0%</div>
                 </div>
             </div>
 
-            <div class="ai-learning-status" id="learningStatus" style="display: none;">
-                <div style="color: #00ff88; font-weight: bold; margin-bottom: 4px;">📚 Самонавчання в процесі...</div>
-                <div style="display: flex; justify-content: space-between; font-size: 9px;">
-                    <span>Симуляцій: <span id="simCount">0</span></span>
-                    <span>Змін правил: <span id="ruleChanges">0</span></span>
+            <div class="reasoning-box" id="reasoningBox">
+                <div class="reasoning-title">📊 Стан нейромережі:</div>
+                <div id="factorsList">
+                    <div class="factor-row">
+                        <span>Зібрано даних:</span>
+                        <span id="dataPoints">0</span>
+                    </div>
+                    <div class="factor-row">
+                        <span>В Firebase:</span>
+                        <span id="firebaseCount">0</span>
+                    </div>
+                    <div class="factor-row">
+                        <span>Точність:</span>
+                        <span id="modelAccuracy">0%</span>
+                    </div>
                 </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="learningProgress" style="width: 0%"></div>
-                </div>
-            </div>
-
-            <div class="reasoning-box" id="reasoningBox" style="display: none;">
-                <div class="reasoning-title">📊 Фактори рішення:</div>
-                <div id="factorsList"></div>
             </div>
         </div>
 
+        <!-- Побічні ставки -->
         <div class="side-bets-panel">
             <div class="panel-title">
                 <span>🎲 Побічні ставки</span>
-                <span style="font-size: 10px; color: #aaa;" id="totalSideBets">₴0</span>
+                <span id="totalSideBets">₴0</span>
             </div>
             <div class="side-bet-item">
                 <span>Perfect Pairs</span>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <input type="number" class="side-bet-amount" id="perfectPairsBet" value="0" min="0" step="50" onchange="updateSideBet('perfectPairs')">
+                <div style="display: flex; gap: 8px;">
+                    <input type="number" class="side-bet-amount" id="perfectPairsBet" value="0" step="50" onchange="updateSideBet('perfectPairs')">
                     <div class="side-bet-toggle" id="perfectPairsToggle" onclick="toggleSideBet('perfectPairs')"></div>
                 </div>
             </div>
             <div class="side-bet-item">
                 <span>21+3</span>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <input type="number" class="side-bet-amount" id="twentyOnePlusThreeBet" value="0" min="0" step="50" onchange="updateSideBet('twentyOnePlusThree')">
+                <div style="display: flex; gap: 8px;">
+                    <input type="number" class="side-bet-amount" id="twentyOnePlusThreeBet" value="0" step="50" onchange="updateSideBet('twentyOnePlusThree')">
                     <div class="side-bet-toggle" id="twentyOnePlusThreeToggle" onclick="toggleSideBet('twentyOnePlusThree')"></div>
                 </div>
             </div>
         </div>
 
+        <!-- Ставка -->
         <div class="betting-panel">
-            <div class="panel-title">💰 Ставка</div>
+            <div class="panel-title">💰 СТАВКА</div>
             <div class="bet-controls">
                 <button class="bet-btn" onclick="changeBet(-50)">−</button>
                 <input type="number" class="bet-input" id="currentBetInput" value="250" min="50" step="50" onchange="updateBetFromInput()">
@@ -1172,6 +1181,7 @@
             </div>
         </div>
 
+        <!-- Ігрова зона -->
         <div class="game-area">
             <div class="game-box">
                 <div class="box-header">
@@ -1183,17 +1193,18 @@
 
             <div class="game-box">
                 <div class="box-header">
-                    <span class="box-title">🤖 ВИ</span>
+                    <span class="box-title">🤖 ГРАВЕЦЬ</span>
                     <span class="score-pill" id="playerScore">--</span>
                 </div>
                 <div class="cards-area" id="playerCards"></div>
             </div>
         </div>
 
+        <!-- Управління -->
         <div class="controls">
             <div class="mode-tabs">
                 <button class="tab-btn active" onclick="setMode('manual')" id="tabManual">🎮 Гра</button>
-                <button class="tab-btn" onclick="setMode('train')" id="tabTrain">🎓 Навчання</button>
+                <button class="tab-btn" onclick="showKnowledgeBase()" id="tabKnowledge">📚 База знань</button>
                 <button class="tab-btn" onclick="showFullTable()" id="tabTable">📋 Таблиця</button>
             </div>
 
@@ -1201,64 +1212,122 @@
                 <button class="big-btn btn-deal" onclick="newRound()" id="mainBtn">🎲 НОВА ГРА</button>
                 <button class="big-btn btn-autoplay" onclick="startAutoPlay()" id="secondBtn">🤖 АВТОГРА</button>
             </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 4px;">
+                <button class="big-btn btn-learn" onclick="trainNeuralNetwork()" style="padding: 10px;" id="trainBtn">🧠 НАВЧИТИ</button>
+                <button class="big-btn btn-firebase" onclick="saveAllToFirebase()" style="padding: 10px; background: #FFA611;" id="saveBtn">🔥 ЗБЕРЕГТИ</button>
+            </div>
         </div>
 
+        <!-- Лог -->
         <div class="console-log" id="consoleLog">
-            <div class="log-line log-info">Система запускається...</div>
+            <div class="log-line log-info">Система готова. Дані синхронізуються з Firebase</div>
         </div>
     </div>
 
-    <div class="modal" id="tableModal">
+    <!-- МОДАЛЬНЕ ВІКНО БАЗИ ЗНАНЬ -->
+    <div class="modal" id="knowledgeModal">
         <div class="modal-content">
-            <div class="modal-title">📋 Таблиця стратегії <span id="tableOptimizedBadge" style="display: none; background: #00ff88; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 8px;">ОПТИМІЗОВАНО</span></div>
+            <div class="modal-title">📚 БАЗА ЗНАНЬ AI</div>
             
-            <div class="optimization-stats" id="optimizationStats" style="display: none;">
-                <div class="optimization-stats-title">📊 Статистика оптимізації</div>
-                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
-                    <div>Перевірено сценаріїв: <span id="scenariosTested" style="color: #00ff88; font-weight: bold;">0</span></div>
-                    <div>Покращень знайдено: <span id="improvementsFound" style="color: #00ff88; font-weight: bold;">0</span></div>
-                    <div>ROI базової: <span id="baseROI" style="color: #ffd700;">0%</span></div>
-                    <div>ROI оптимізованої: <span id="optimizedROI" style="color: #00ff88; font-weight: bold;">0%</span></div>
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-box-value" id="totalScenarios">0</div>
+                    <div style="font-size: 10px;">Всього сценаріїв</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-box-value" id="trainSamples">0</div>
+                    <div style="font-size: 10px;">Для навчання</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-box-value" id="modelAccuracy2">0%</div>
+                    <div style="font-size: 10px;">Точність моделі</div>
                 </div>
             </div>
 
-            <div class="legend">
-                <div class="legend-item"><div class="legend-box" style="background: #2e7d32;"></div> H=Hit</div>
-                <div class="legend-item"><div class="legend-box" style="background: #c62828;"></div> S=Stand</div>
-                <div class="legend-item"><div class="legend-box" style="background: #6a1b9a;"></div> D=Double</div>
-                <div class="legend-item"><div class="legend-box" style="background: #f9a825;"></div> SP=Split</div>
-                <div class="legend-item"><div class="legend-box" style="border: 2px solid #00ff88; background: transparent;"></div> Оптимізовано</div>
+            <div style="display: flex; gap: 8px; margin: 10px 0;">
+                <button class="learn-btn" onclick="loadFromFirebase()" style="background: #FFA611; margin: 0;">📥 Завантажити</button>
+                <button class="learn-btn" onclick="saveToFirebase()" style="background: #00ff88; color: #000; margin: 0;">📤 Зберегти</button>
             </div>
 
-            <div class="table-controls">
-                <button class="table-control-btn" onclick="switchTableView('hard')">Hard</button>
-                <button class="table-control-btn" onclick="switchTableView('soft')">Soft</button>
-                <button class="table-control-btn" onclick="switchTableView('pairs')">Pairs</button>
-                <button class="table-control-btn" onclick="resetToBasicStrategy()">🔄 Скинути</button>
-                <button class="table-control-btn" onclick="exportStrategy()">💾 Експорт</button>
+            <div class="training-progress" id="trainingProgress" style="display: none;">
+                <div style="color: #bc13fe; font-weight: 700;">🔄 Навчання нейромережі...</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="trainingProgressFill" style="width: 0%"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-top: 5px;">
+                    <span>Епоха: <span id="currentEpoch">0</span>/<span id="totalEpochs">50</span></span>
+                    <span class="loss-value" id="currentLoss">0.0000</span>
+                </div>
             </div>
 
-            <div id="tableContainer"></div>
-            
-            <button class="modal-btn" onclick="hideTableModal()">Закрити</button>
+            <div id="knowledgeBaseContainer" class="knowledge-base">
+                <!-- Тут буде база знань -->
+            </div>
+
+            <button class="modal-close-btn" onclick="hideModal('knowledgeModal')">Закрити</button>
         </div>
     </div>
 
+    <!-- МОДАЛЬНЕ ВІКНО З ТАБЛИЦЕЮ СТРАТЕГІЇ -->
+    <div class="modal" id="strategyModal">
+        <div class="modal-content">
+            <div class="modal-title">📋 ОПТИМІЗОВАНА ТАБЛИЦЯ</div>
+            
+            <div class="table-controls">
+                <button class="table-btn active" id="tabHardBtn" onclick="showStrategyTable('hard')">Hard</button>
+                <button class="table-btn" id="tabSoftBtn" onclick="showStrategyTable('soft')">Soft</button>
+                <button class="table-btn" id="tabPairsBtn" onclick="showStrategyTable('pairs')">Pairs</button>
+            </div>
+
+            <div id="strategyTableContainer" class="strategy-table-container">
+                <!-- Тут буде згенерована таблиця -->
+            </div>
+
+            <button class="modal-close-btn" onclick="hideModal('strategyModal')">Закрити</button>
+        </div>
+    </div>
+
+    <!-- МОДАЛЬНЕ ВІКНО ПОПОВНЕННЯ -->
     <div class="modal" id="depositModal">
         <div class="modal-content">
             <div class="modal-title">💰 Поповнення балансу</div>
-            <input type="number" class="deposit-input" id="depositAmount" placeholder="Сума (₴)" min="100" step="100">
-            <button class="modal-btn" onclick="confirmDeposit()">Поповнити</button>
-            <button class="modal-btn secondary" onclick="hideDepositModal()">Скасувати</button>
+            <input type="number" class="deposit-input" id="depositAmount" placeholder="Сума (₴)" min="100" step="100" value="500">
+            <button class="modal-close-btn" onclick="confirmDeposit()" style="background: #00ff88; color: #000;">Поповнити</button>
+            <button class="modal-close-btn" onclick="hideModal('depositModal')" style="margin-top: 10px; background: #ff6b6b;">Скасувати</button>
         </div>
     </div>
 
     <script>
-        // Глобальні змінні
+        // ==================== FIREBASE ІНІЦІАЛІЗАЦІЯ ====================
+        const firebaseConfig = {
+            apiKey: "AIzaSyCJ6fGZq41Om8D1Agpt3VL7ea-BE1SJcdY",
+            authDomain: "bj-app-37763.firebaseapp.com",
+            databaseURL: "https://bj-app-37763-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "bj-app-37763",
+            storageBucket: "bj-app-37763.firebasestorage.app",
+            messagingSenderId: "893038526875",
+            appId: "1:893038526875:web:d03e29aa24da8d907b213e"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const rtdb = firebase.database();
+        
+        // Firebase статус
+        let firebaseConnected = false;
+        let gamesCount = 0;
+        let scenariosCount = 0;
+        let modelsCount = 0;
+
+        // ==================== ГЛОБАЛЬНІ ЗМІННІ ====================
         let tfModel = null;
         let isModelReady = false;
+        let modelAccuracy = 0;
+        let lastLoss = 0;
+        
         let balance = 1000;
-        let startingBalance = 1000; // Фіксуємо початковий баланс для розрахунку прибутку
+        let startingBalance = 1000;
         let currentBet = 250;
         let deck = [];
         let dealerHand = [];
@@ -1267,11 +1336,10 @@
         let currentHandIndex = 0;
         let runningCount = 0;
         let trueCount = 0;
-        let gameState = 'idle'; // 'idle', 'playing', 'dealer', 'finished'
+        let gameState = 'idle';
         let isAutoPlaying = false;
         let autoPlayPaused = false;
         let autoPlaySpeed = 3;
-        let isSelfPlaying = false;
         
         // Статистика
         let stats = { 
@@ -1283,14 +1351,18 @@
             totalDecisions: 0 
         };
         
-        // Автогра статистика
+        // Статистика автогри
         let autoPlayStats = {
             gamesPlayed: 0,
             totalWon: 0,
             totalLost: 0,
-            currentStreak: 0,
-            startBalance: 1000
+            currentStreak: 0
         };
+        
+        // БАЗА ЗНАНЬ AI - для навчання
+        let knowledgeBase = [];
+        let trainingData = [];
+        let trainingLabels = [];
         
         // Побічні ставки
         let sideBets = {
@@ -1298,23 +1370,16 @@
             twentyOnePlusThree: { active: false, amount: 0 }
         };
 
-        // Дані для оптимізації
-        let optimizationData = {
-            simulationsRun: 0,
-            rulesChanged: 0,
-            baseStrategyROI: 0,
-            optimizedROI: 0,
-            improvedCells: new Set(),
-            scenariosRun: 0
-        };
-
-        // Базова стратегія
+        // ==================== ІДЕАЛЬНА ТАБЛИЦЯ СТРАТЕГІЇ ====================
         const baseStrategy = {
             hard: {
+                5:  {2:'H',3:'H',4:'H',5:'H',6:'H',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                6:  {2:'H',3:'H',4:'H',5:'H',6:'H',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                7:  {2:'H',3:'H',4:'H',5:'H',6:'H',7:'H',8:'H',9:'H',10:'H',A:'H'},
                 8:  {2:'H',3:'H',4:'H',5:'H',6:'H',7:'H',8:'H',9:'H',10:'H',A:'H'},
                 9:  {2:'H',3:'D',4:'D',5:'D',6:'D',7:'H',8:'H',9:'H',10:'H',A:'H'},
                 10: {2:'D',3:'D',4:'D',5:'D',6:'D',7:'D',8:'D',9:'D',10:'H',A:'H'},
-                11: {2:'D',3:'D',4:'D',5:'D',6:'D',7:'D',8:'D',9:'D',10:'D',A:'D'},
+                11: {2:'D',3:'D',4:'D',5:'D',6:'D',7:'D',8:'D',9:'D',10:'D',A:'H'},
                 12: {2:'H',3:'H',4:'S',5:'S',6:'S',7:'H',8:'H',9:'H',10:'H',A:'H'},
                 13: {2:'S',3:'S',4:'S',5:'S',6:'S',7:'H',8:'H',9:'H',10:'H',A:'H'},
                 14: {2:'S',3:'S',4:'S',5:'S',6:'S',7:'H',8:'H',9:'H',10:'H',A:'H'},
@@ -1323,21 +1388,23 @@
                 17: {2:'S',3:'S',4:'S',5:'S',6:'S',7:'S',8:'S',9:'S',10:'S',A:'S'},
                 18: {2:'S',3:'S',4:'S',5:'S',6:'S',7:'S',8:'S',9:'S',10:'S',A:'S'},
                 19: {2:'S',3:'S',4:'S',5:'S',6:'S',7:'S',8:'S',9:'S',10:'S',A:'S'},
-                20: {2:'S',3:'S',4:'S',5:'S',6:'S',7:'S',8:'S',9:'S',10:'S',A:'S'}
+                20: {2:'S',3:'S',4:'S',5:'S',6:'S',7:'S',8:'S',9:'S',10:'S',A:'S'},
+                21: {2:'S',3:'S',4:'S',5:'S',6:'S',7:'S',8:'S',9:'S',10:'S',A:'S'}
             },
             soft: {
-                'A2': {2:'H',3:'H',4:'H',5:'D',6:'D',7:'H',8:'H',9:'H',10:'H',A:'H'},
-                'A3': {2:'H',3:'H',4:'H',5:'D',6:'D',7:'H',8:'H',9:'H',10:'H',A:'H'},
-                'A4': {2:'H',3:'H',4:'D',5:'D',6:'D',7:'H',8:'H',9:'H',10:'H',A:'H'},
-                'A5': {2:'H',3:'H',4:'D',5:'D',6:'D',7:'H',8:'H',9:'H',10:'H',A:'H'},
-                'A6': {2:'H',3:'D',4:'D',5:'D',6:'D',7:'H',8:'H',9:'H',10:'H',A:'H'},
-                'A7': {2:'S',3:'D',4:'D',5:'D',6:'D',7:'S',8:'S',9:'H',10:'H',A:'H'},
-                'A8': {2:'S',3:'S',4:'S',5:'S',6:'S',7:'S',8:'S',9:'S',10:'S',A:'S'},
-                'A9': {2:'S',3:'S',4:'S',5:'S',6:'S',7:'S',8:'S',9:'S',10:'S',A:'S'}
+                'A,2': {2:'H',3:'H',4:'H',5:'D',6:'D',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                'A,3': {2:'H',3:'H',4:'H',5:'D',6:'D',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                'A,4': {2:'H',3:'H',4:'D',5:'D',6:'D',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                'A,5': {2:'H',3:'H',4:'D',5:'D',6:'D',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                'A,6': {2:'H',3:'D',4:'D',5:'D',6:'D',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                'A,7': {2:'S',3:'D',4:'D',5:'D',6:'D',7:'S',8:'S',9:'H',10:'H',A:'H'},
+                'A,8': {2:'S',3:'S',4:'S',5:'S',6:'S',7:'S',8:'S',9:'S',10:'S',A:'S'},
+                'A,9': {2:'S',3:'S',4:'S',5:'S',6:'S',7:'S',8:'S',9:'S',10:'S',A:'S'},
+                'A,10': {2:'S',3:'S',4:'S',5:'S',6:'S',7:'S',8:'S',9:'S',10:'S',A:'S'}
             },
             pairs: {
-                '2,2': {2:'SP',3:'SP',4:'SP',5:'SP',6:'SP',7:'H',8:'H',9:'H',10:'H',A:'H'},
-                '3,3': {2:'SP',3:'SP',4:'SP',5:'SP',6:'SP',7:'H',8:'H',9:'H',10:'H',A:'H'},
+                '2,2': {2:'SP',3:'SP',4:'SP',5:'SP',6:'SP',7:'SP',8:'H',9:'H',10:'H',A:'H'},
+                '3,3': {2:'SP',3:'SP',4:'SP',5:'SP',6:'SP',7:'SP',8:'H',9:'H',10:'H',A:'H'},
                 '4,4': {2:'H',3:'H',4:'H',5:'SP',6:'SP',7:'H',8:'H',9:'H',10:'H',A:'H'},
                 '5,5': {2:'D',3:'D',4:'D',5:'D',6:'D',7:'D',8:'D',9:'D',10:'H',A:'H'},
                 '6,6': {2:'SP',3:'SP',4:'SP',5:'SP',6:'SP',7:'H',8:'H',9:'H',10:'H',A:'H'},
@@ -1350,28 +1417,211 @@
         };
 
         let optimizedStrategy = JSON.parse(JSON.stringify(baseStrategy));
+        let currentTableView = 'hard';
 
-        // Ініціалізація
+        // ==================== FIREBASE ФУНКЦІЇ ====================
+        
+        // Перевірка підключення до Firebase
+        function checkFirebaseConnection() {
+            const dot = document.getElementById('firebaseDot');
+            const text = document.getElementById('firebaseText');
+            
+            if (firebase.apps.length) {
+                firebase.firestore().enableNetwork().then(() => {
+                    firebaseConnected = true;
+                    dot.className = 'firebase-dot connected';
+                    text.textContent = 'Firebase Online';
+                    addLog('🔥 Підключено до Firebase', 'firebase');
+                }).catch(() => {
+                    firebaseConnected = false;
+                    dot.className = 'firebase-dot';
+                    text.textContent = 'Firebase Offline';
+                });
+            }
+        }
+
+        // Збереження гри в Firebase
+        async function saveGameToFirebase(gameData) {
+            if (!firebaseConnected) return;
+            
+            try {
+                await db.collection('blackjack_games').add({
+                    ...gameData,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    sessionId: sessionId
+                });
+                gamesCount++;
+                document.getElementById('firebaseGames').textContent = gamesCount;
+                addLog('💾 Гру збережено в Firebase', 'firebase');
+            } catch (error) {
+                console.error('Помилка збереження гри:', error);
+            }
+        }
+
+        // Збереження сценарію в Firebase
+        async function saveScenarioToFirebase(scenario) {
+            if (!firebaseConnected) return;
+            
+            try {
+                await db.collection('scenarios').add({
+                    ...scenario,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                scenariosCount++;
+                document.getElementById('firebaseScenarios').textContent = scenariosCount;
+            } catch (error) {
+                console.error('Помилка збереження сценарію:', error);
+            }
+        }
+
+        // Збереження моделі в Firebase
+        async function saveModelToFirebase() {
+            if (!firebaseConnected || !tfModel) return;
+            
+            try {
+                document.getElementById('systemStatus').textContent = '💾 Збереження';
+                document.getElementById('systemStatus').className = 'status-badge saving';
+                
+                // Зберігаємо ваги моделі
+                const weights = await tfModel.getWeights();
+                const weightsData = weights.map(w => Array.from(w.dataSync()));
+                
+                await db.collection('ai_models').add({
+                    weights: weightsData,
+                    accuracy: modelAccuracy,
+                    loss: lastLoss,
+                    knowledgeBaseSize: knowledgeBase.length,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                modelsCount++;
+                document.getElementById('firebaseModels').textContent = modelsCount;
+                addLog('💾 Модель збережено в Firebase', 'firebase');
+            } catch (error) {
+                console.error('Помилка збереження моделі:', error);
+            } finally {
+                document.getElementById('systemStatus').textContent = '✅ Готовий';
+                document.getElementById('systemStatus').className = 'status-badge ready';
+            }
+        }
+
+        // Збереження всього в Firebase
+        async function saveAllToFirebase() {
+            if (!firebaseConnected) {
+                addLog('❌ Firebase не підключено', 'error');
+                return;
+            }
+            
+            addLog('🔄 Збереження всіх даних у Firebase...', 'firebase');
+            
+            // Зберігаємо статистику
+            await db.collection('stats').doc('current').set({
+                balance: balance,
+                totalGames: stats.totalGames,
+                wins: stats.wins,
+                losses: stats.losses,
+                pushes: stats.pushes,
+                accuracy: modelAccuracy,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            
+            // Зберігаємо базу знань
+            for (const scenario of knowledgeBase.slice(-10)) { // Останні 10
+                await saveScenarioToFirebase(scenario);
+            }
+            
+            // Зберігаємо модель
+            await saveModelToFirebase();
+            
+            addLog('✅ Всі дані збережено у Firebase', 'firebase');
+            updateFirebaseStats();
+        }
+
+        // Завантаження з Firebase
+        async function loadFromFirebase() {
+            if (!firebaseConnected) return;
+            
+            addLog('🔄 Завантаження даних з Firebase...', 'firebase');
+            
+            try {
+                // Завантажуємо останню модель
+                const modelsSnapshot = await db.collection('ai_models')
+                    .orderBy('timestamp', 'desc')
+                    .limit(1)
+                    .get();
+                
+                if (!modelsSnapshot.empty) {
+                    const modelData = modelsSnapshot.docs[0].data();
+                    addLog(`📥 Знайдено модель з точністю ${modelData.accuracy}%`, 'firebase');
+                    
+                    // Тут можна відновити ваги моделі
+                    if (modelData.weights && tfModel) {
+                        // Відновлення ваг моделі
+                        console.log('Можна відновити ваги моделі');
+                    }
+                }
+                
+                // Завантажуємо статистику
+                const statsDoc = await db.collection('stats').doc('current').get();
+                if (statsDoc.exists) {
+                    const statsData = statsDoc.data();
+                    addLog(`📊 Статистика: ${statsData.totalGames} ігор`, 'firebase');
+                }
+                
+            } catch (error) {
+                console.error('Помилка завантаження:', error);
+            }
+        }
+
+        // Синхронізація з Firebase
+        async function syncFromFirebase() {
+            addLog('🔄 Синхронізація з Firebase...', 'firebase');
+            await loadFromFirebase();
+            updateFirebaseStats();
+        }
+
+        // Оновлення статистики Firebase
+        async function updateFirebaseStats() {
+            try {
+                const gamesSnapshot = await db.collection('blackjack_games').count().get();
+                const scenariosSnapshot = await db.collection('scenarios').count().get();
+                const modelsSnapshot = await db.collection('ai_models').count().get();
+                
+                gamesCount = gamesSnapshot.data().count || 0;
+                scenariosCount = scenariosSnapshot.data().count || 0;
+                modelsCount = modelsSnapshot.data().count || 0;
+                
+                document.getElementById('firebaseGames').textContent = gamesCount;
+                document.getElementById('firebaseScenarios').textContent = scenariosCount;
+                document.getElementById('firebaseModels').textContent = modelsCount;
+            } catch (error) {
+                console.error('Помилка отримання статистики:', error);
+            }
+        }
+
+        // ==================== ІНІЦІАЛІЗАЦІЯ ====================
+        let sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        
         window.addEventListener('DOMContentLoaded', async () => {
             try {
                 await tf.ready();
                 
-                // Створюємо просту нейромережу
-                tfModel = tf.sequential({
-                    layers: [
-                        tf.layers.dense({inputShape: [15], units: 64, activation: 'relu'}),
-                        tf.layers.dense({units: 32, activation: 'relu'}),
-                        tf.layers.dense({units: 4, activation: 'softmax'})
-                    ]
-                });
+                // Створюємо нейромережу
+                createNeuralNetwork();
                 
-                tfModel.compile({
-                    optimizer: tf.train.adam(0.001), 
-                    loss: 'categoricalCrossentropy',
-                    metrics: ['accuracy']
-                });
+                // Спроба завантажити збережену модель з localStorage
+                await loadModel();
                 
-                isModelReady = true;
+                // Підключення до Firebase
+                checkFirebaseConnection();
+                
+                // Оновлення статистики Firebase
+                setTimeout(() => {
+                    if (firebaseConnected) {
+                        updateFirebaseStats();
+                    }
+                }, 2000);
+                
                 createDeck();
                 updateDisplay();
                 
@@ -1379,20 +1629,195 @@
                 document.getElementById('systemStatus').textContent = '✅ Готовий';
                 document.getElementById('systemStatus').classList.add('ready');
                 
-                // Налаштування швидкості
+                // Слухач швидкості
                 document.getElementById('autoSpeed').addEventListener('input', (e) => {
                     autoPlaySpeed = parseInt(e.target.value);
                     document.getElementById('speedValue').textContent = autoPlaySpeed + 'x';
                 });
                 
-                addLog('Система готова!', 'success');
+                // Спочатку ховаємо панель автогри
+                document.getElementById('autoPlayPanel').style.display = 'none';
+                
+                addLog('✅ Система готова. Дані будуть зберігатися в Firebase', 'success');
             } catch (err) {
                 console.error(err);
                 addLog('Помилка: ' + err.message, 'error');
             }
         });
 
-        // === ФУНКЦІЇ ДЛЯ КОЛОДИ ===
+        // ==================== НЕЙРОМЕРЕЖА ====================
+        function createNeuralNetwork() {
+            tfModel = tf.sequential({
+                layers: [
+                    tf.layers.dense({
+                        inputShape: [10],
+                        units: 64,
+                        activation: 'relu',
+                        kernelInitializer: 'heNormal'
+                    }),
+                    tf.layers.dropout({ rate: 0.2 }),
+                    tf.layers.dense({
+                        units: 32,
+                        activation: 'relu',
+                        kernelInitializer: 'heNormal'
+                    }),
+                    tf.layers.dropout({ rate: 0.2 }),
+                    tf.layers.dense({
+                        units: 4,
+                        activation: 'softmax'
+                    })
+                ]
+            });
+            
+            tfModel.compile({
+                optimizer: tf.train.adam(0.001),
+                loss: 'categoricalCrossentropy',
+                metrics: ['accuracy']
+            });
+            
+            isModelReady = true;
+            addLog('🧠 Нейромережа створена', 'learning');
+        }
+
+        // ==================== ПІДГОТОВКА ДАНИХ ====================
+        function prepareTrainingData() {
+            if (knowledgeBase.length < 10) {
+                addLog('❌ Потрібно більше даних (мінімум 10 ігор)', 'error');
+                return false;
+            }
+            
+            trainingData = [];
+            trainingLabels = [];
+            
+            knowledgeBase.forEach(scenario => {
+                const input = [
+                    scenario.playerScore / 21,
+                    scenario.dealerCardValue / 11,
+                    scenario.hand.length / 5,
+                    scenario.canSplit ? 1 : 0,
+                    scenario.canDouble ? 1 : 0,
+                    scenario.isSoft ? 1 : 0,
+                    scenario.trueCount / 10,
+                    (scenario.playerScore - scenario.dealerCardValue) / 20,
+                    scenario.hand[0]?.value / 11 || 0,
+                    scenario.hand[1]?.value / 11 || 0
+                ];
+                
+                const actionIndex = {
+                    'hit': 0,
+                    'stand': 1,
+                    'double': 2,
+                    'split': 3
+                }[scenario.alternativeAction] || 0;
+                
+                const label = [0, 0, 0, 0];
+                label[actionIndex] = 1;
+                
+                trainingData.push(input);
+                trainingLabels.push(label);
+            });
+            
+            addLog(`📊 Підготовлено ${trainingData.length} прикладів для навчання`, 'learning');
+            return true;
+        }
+
+        // ==================== НАВЧАННЯ НЕЙРОМЕРЕЖІ ====================
+        async function trainNeuralNetwork() {
+            if (!isModelReady) {
+                addLog('❌ Модель не готова', 'error');
+                return;
+            }
+            
+            if (!prepareTrainingData()) {
+                return;
+            }
+            
+            document.getElementById('trainingProgress').style.display = 'block';
+            document.getElementById('trainBtn').disabled = true;
+            document.getElementById('systemStatus').textContent = '🧠 Навчання';
+            document.getElementById('systemStatus').className = 'status-badge learning';
+            
+            const xs = tf.tensor2d(trainingData);
+            const ys = tf.tensor2d(trainingLabels);
+            
+            const epochs = 50;
+            const batchSize = Math.min(32, Math.floor(trainingData.length / 2));
+            
+            addLog(`🚀 Початок навчання на ${epochs} епохах...`, 'learning');
+            
+            try {
+                await tfModel.fit(xs, ys, {
+                    epochs: epochs,
+                    batchSize: batchSize,
+                    validationSplit: 0.2,
+                    callbacks: {
+                        onEpochEnd: (epoch, logs) => {
+                            const progress = ((epoch + 1) / epochs * 100).toFixed(1);
+                            document.getElementById('trainingProgressFill').style.width = progress + '%';
+                            document.getElementById('currentEpoch').textContent = epoch + 1;
+                            document.getElementById('currentLoss').textContent = logs.loss.toFixed(4);
+                            
+                            lastLoss = logs.loss;
+                            modelAccuracy = logs.acc ? (logs.acc * 100).toFixed(1) : 0;
+                            
+                            if ((epoch + 1) % 10 === 0) {
+                                addLog(`📈 Епоха ${epoch + 1}: loss = ${logs.loss.toFixed(4)}, accuracy = ${modelAccuracy}%`, 'learning');
+                            }
+                        }
+                    }
+                });
+                
+                addLog(`✅ Навчання завершено! Фінальна точність: ${modelAccuracy}%`, 'success');
+                
+                // Автоматично зберігаємо модель в Firebase після навчання
+                if (firebaseConnected) {
+                    await saveModelToFirebase();
+                }
+                
+            } catch (error) {
+                addLog(`❌ Помилка навчання: ${error.message}`, 'error');
+            } finally {
+                xs.dispose();
+                ys.dispose();
+                
+                document.getElementById('trainingProgress').style.display = 'none';
+                document.getElementById('trainBtn').disabled = false;
+                document.getElementById('systemStatus').textContent = '✅ Готовий';
+                document.getElementById('systemStatus').className = 'status-badge ready';
+                
+                updateModelInfo();
+            }
+        }
+
+        // ==================== ЗБЕРЕЖЕННЯ МОДЕЛІ ====================
+        async function saveModel() {
+            if (!isModelReady) {
+                addLog('❌ Модель не готова', 'error');
+                return;
+            }
+            
+            try {
+                await tfModel.save('localstorage://blackjack-ai-model');
+                addLog('💾 Модель збережено в локальному сховищі', 'success');
+            } catch (error) {
+                addLog(`❌ Помилка збереження: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadModel() {
+            try {
+                const models = await tf.io.listModels();
+                if (models['localstorage://blackjack-ai-model']) {
+                    tfModel = await tf.loadLayersModel('localstorage://blackjack-ai-model');
+                    isModelReady = true;
+                    addLog('📂 Завантажено збережену модель', 'success');
+                }
+            } catch (error) {
+                console.log('No saved model found');
+            }
+        }
+
+        // ==================== ФУНКЦІЇ КОЛОДИ ====================
         function createDeck() {
             const suits = ['♠', '♥', '♦', '♣'];
             const values = [
@@ -1416,7 +1841,6 @@
                 }
             }
             
-            // Перемішування
             for (let i = deck.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [deck[i], deck[j]] = [deck[j], deck[i]];
@@ -1441,41 +1865,31 @@
         }
 
         function updateDeckVisualization() {
-            const cardsLeft = deck.length;
-            document.getElementById('deckCardsCount').textContent = cardsLeft;
+            document.getElementById('deckCardsCount').textContent = deck.length;
             
-            // Визначаємо "температуру" колоди
-            let tempLabel = '❄️ Холодна';
-            let tempColor = '#00ff88';
-            let fillPercent = 30;
+            let tempLabel = '⚪ Нейтральна';
+            let fillPercent = 50;
             
             if (trueCount > 2) {
                 tempLabel = '🔥 Гаряча';
-                tempColor = '#ff6b6b';
                 fillPercent = 90;
             } else if (trueCount > 1) {
                 tempLabel = '⚫ Тепла';
-                tempColor = '#ffd700';
-                fillPercent = 70;
+                fillPercent = 75;
             } else if (trueCount > 0.5) {
                 tempLabel = '⚪ Нейтральна';
-                tempColor = '#4ecdc4';
                 fillPercent = 50;
             } else if (trueCount < -1) {
                 tempLabel = '❄️ Холодна';
-                tempColor = '#4ecdc4';
                 fillPercent = 30;
             } else if (trueCount < -2) {
                 tempLabel = '🧊 Дуже холодна';
-                tempColor = '#00ff88';
                 fillPercent = 20;
             }
             
             document.getElementById('deckTemperatureFill').style.width = fillPercent + '%';
             document.getElementById('deckTemperatureLabel').textContent = tempLabel;
-            document.getElementById('deckTemperatureLabel').style.color = tempColor;
             
-            // Показуємо верхні карти
             const preview = document.getElementById('deckPreview');
             preview.innerHTML = '';
             
@@ -1496,7 +1910,7 @@
             }
         }
 
-        // === ФУНКЦІЇ ГРИ ===
+        // ==================== ФУНКЦІЇ ГРИ ====================
         function calcScore(hand) {
             let score = 0;
             let aces = 0;
@@ -1537,15 +1951,101 @@
                 canSplit: canSplitHand(currentHand),
                 canDouble: currentHand.length === 2,
                 isSoft: isSoftHand(currentHand),
-                numCards: currentHand.length
+                numCards: currentHand.length,
+                hand: [...currentHand],
+                dealerUpCard: dealerHand[0],
+                trueCount: trueCount
             };
         }
 
-        // === НОВА ГРА ===
-        function newRound() {
-            if (isAutoPlaying) return;
+        // ==================== БАЗА ЗНАНЬ ====================
+        function saveDecisionToKnowledgeBase(decision, outcome) {
+            const optimalAction = getOptimalActionFromTable({
+                playerScore: calcScore(decision.hand),
+                dealerCard: decision.dealerUpCard?.value || 0,
+                canSplit: decision.hand.length === 2 && decision.hand[0].value === decision.hand[1].value,
+                canDouble: decision.hand.length === 2,
+                isSoft: isSoftHand(decision.hand)
+            }) || 'stand';
             
-            // Перевіряємо чи гра не в процесі
+            const scenario = {
+                id: knowledgeBase.length + 1,
+                timestamp: new Date().toISOString(),
+                hand: decision.hand.map(c => ({ name: c.name, value: c.value, suit: c.suit })),
+                dealerCard: decision.dealerUpCard ? { 
+                    name: decision.dealerUpCard.name, 
+                    value: decision.dealerUpCard.value 
+                } : null,
+                playerScore: calcScore(decision.hand),
+                dealerCardValue: decision.dealerUpCard?.value || 0,
+                actionTaken: decision.action,
+                alternativeAction: optimalAction,
+                outcome: outcome,
+                canSplit: decision.hand.length === 2 && decision.hand[0].value === decision.hand[1].value,
+                canDouble: decision.hand.length === 2,
+                isSoft: isSoftHand(decision.hand),
+                trueCount: trueCount,
+                timesEncountered: 1
+            };
+            
+            knowledgeBase.push(scenario);
+            
+            // Зберігаємо в Firebase
+            if (firebaseConnected && knowledgeBase.length % 5 === 0) { // Кожен 5-й сценарій
+                saveScenarioToFirebase(scenario);
+            }
+            
+            updateModelInfo();
+        }
+
+        function getOptimalActionFromTable(state) {
+            const {playerScore, dealerCard, canSplit, canDouble, isSoft} = state;
+            const dCard = dealerCard === 11 ? 'A' : dealerCard.toString();
+            
+            if (canSplit) {
+                const cardValue = playerHands[currentHandIndex]?.[0]?.value || 0;
+                let pairKey;
+                if (cardValue === 11) pairKey = 'A,A';
+                else if (cardValue === 10) pairKey = '10,10';
+                else pairKey = `${cardValue},${cardValue}`;
+                
+                if (baseStrategy.pairs[pairKey] && baseStrategy.pairs[pairKey][dCard]) {
+                    const action = baseStrategy.pairs[pairKey][dCard];
+                    if (action === 'H') return 'hit';
+                    if (action === 'S') return 'stand';
+                    if (action === 'D' && canDouble) return 'double';
+                    if (action === 'SP' && canSplit) return 'split';
+                }
+            } else if (isSoft) {
+                const secondCard = playerScore - 11;
+                const softKey = `A,${secondCard}`;
+                
+                if (baseStrategy.soft[softKey] && baseStrategy.soft[softKey][dCard]) {
+                    const action = baseStrategy.soft[softKey][dCard];
+                    if (action === 'H') return 'hit';
+                    if (action === 'S') return 'stand';
+                    if (action === 'D' && canDouble) return 'double';
+                }
+            } else {
+                const hardScore = Math.min(21, Math.max(5, playerScore));
+                if (baseStrategy.hard[hardScore] && baseStrategy.hard[hardScore][dCard]) {
+                    const action = baseStrategy.hard[hardScore][dCard];
+                    if (action === 'H') return 'hit';
+                    if (action === 'S') return 'stand';
+                    if (action === 'D' && canDouble) return 'double';
+                }
+            }
+            
+            return null;
+        }
+
+        // ==================== НОВА ГРА ====================
+        function newRound() {
+            if (isAutoPlaying) {
+                addLog('Зупиніть автогру спочатку', 'error');
+                return;
+            }
+            
             if (gameState === 'playing') {
                 if (!confirm('Гра в процесі. Почати нову?')) return;
             }
@@ -1556,11 +2056,9 @@
                 return;
             }
 
-            // Скидаємо руки
             playerHands = [];
             currentHandIndex = 0;
             
-            // Побічні ставки
             let sideBetTotal = 0;
             if (sideBets.perfectPairs.active) sideBetTotal += sideBets.perfectPairs.amount;
             if (sideBets.twentyOnePlusThree.active) sideBetTotal += sideBets.twentyOnePlusThree.amount;
@@ -1570,10 +2068,8 @@
                 addLog(`Побічні ставки: -₴${sideBetTotal}`, 'info');
             }
 
-            // Основна ставка
             balance -= currentBet;
             
-            // Роздаємо карти
             dealerHand = [draw(), draw()];
             playerHand = [draw(), draw()];
             playerHands.push([...playerHand]);
@@ -1584,7 +2080,6 @@
             updateStats();
             updateControls();
             
-            // Перевіряємо блекджек
             setTimeout(() => {
                 if (gameState === 'playing') checkBlackjack();
                 visualizeAIDecision();
@@ -1596,17 +2091,13 @@
         function checkBlackjack() {
             const pScore = calcScore(playerHand);
             const dScore = calcScore(dealerHand);
-            const dUpCard = dealerHand[0].value;
             
-            // Блекджек гравця
             if (pScore === 21 && playerHand.length === 2) {
                 if (dScore === 21 && dealerHand.length === 2) {
-                    // Нічия - повертаємо ставку
                     balance += currentBet;
                     addLog('Подвійний Блекджек! Нічия', 'info');
                     endRound('push');
                 } else {
-                    // Виграш 3:2
                     const winAmount = currentBet * 2.5;
                     balance += winAmount;
                     addLog(`🎉 Блекджек! +₴${Math.floor(winAmount - currentBet)}`, 'success');
@@ -1617,7 +2108,6 @@
                 return true;
             }
             
-            // Блекджек дилера
             if (dScore === 21 && dealerHand.length === 2) {
                 addLog('Дилер має блекджек!', 'error');
                 stats.losses++;
@@ -1629,28 +2119,22 @@
             return false;
         }
 
-        // === ДІЇ ГРАВЦЯ ===
+        // ==================== ДІЇ ГРАВЦЯ ====================
         async function playerAction(action) {
             if (gameState !== 'playing' || isAutoPlaying) return;
             
             const currentHand = playerHands[currentHandIndex];
             const state = getCurrentState();
             
-            if (action === 'double' && !state.canDouble) {
-                addLog('Подвійна недоступна', 'error');
-                return;
-            }
-            if (action === 'split' && !state.canSplit) {
-                addLog('Спліт недоступний', 'error');
-                return;
-            }
+            if (action === 'double' && !state.canDouble) return;
+            if (action === 'split' && !state.canSplit) return;
 
-            // Відстежуємо рішення AI
-            const aiDecision = await visualizeAIDecision();
-            if (aiDecision) {
-                stats.totalDecisions++;
-                if (aiDecision.bestAction === action) stats.correctDecisions++;
-            }
+            const decision = {
+                hand: [...currentHand],
+                dealerUpCard: dealerHand[0],
+                action: action,
+                timestamp: new Date().toISOString()
+            };
 
             switch(action) {
                 case 'hit':
@@ -1658,14 +2142,13 @@
                     addLog('Гравець бере карту', 'info');
                     
                     if (calcScore(currentHand) > 21) {
+                        saveDecisionToKnowledgeBase(decision, 'loss');
                         if (currentHandIndex < playerHands.length - 1) {
-                            // Переходимо до наступної руки
                             currentHandIndex++;
                             updateDisplay();
                             visualizeAIDecision();
                         } else {
-                            // Всі руки завершені
-                            dealerPlay();
+                            dealerPlay(decision);
                         }
                     }
                     break;
@@ -1677,7 +2160,7 @@
                         updateDisplay();
                         visualizeAIDecision();
                     } else {
-                        dealerPlay();
+                        dealerPlay(decision);
                     }
                     break;
                     
@@ -1685,17 +2168,19 @@
                     if (balance >= currentBet) {
                         balance -= currentBet;
                         currentHand.push(draw());
-                        addLog(`Подвійна ставка! Ще карта: ${currentHand[currentHand.length-1].name}`, 'info');
+                        addLog(`Подвійна ставка!`, 'info');
+                        
+                        if (calcScore(currentHand) > 21) {
+                            saveDecisionToKnowledgeBase(decision, 'loss');
+                        }
                         
                         if (currentHandIndex < playerHands.length - 1) {
                             currentHandIndex++;
                             updateDisplay();
                             visualizeAIDecision();
                         } else {
-                            dealerPlay();
+                            dealerPlay(decision);
                         }
-                    } else {
-                        addLog('Недостатньо коштів для подвійної', 'error');
                     }
                     break;
                     
@@ -1705,14 +2190,11 @@
                         const card1 = currentHand[0];
                         const card2 = currentHand[1];
                         
-                        // Створюємо дві руки
                         playerHands[currentHandIndex] = [card1, draw()];
                         playerHands.push([card2, draw()]);
                         
-                        addLog('Спліт! Розділяємо карти', 'info');
+                        addLog('Спліт!', 'info');
                         updateStats();
-                    } else {
-                        addLog('Недостатньо коштів для спліту', 'error');
                     }
                     break;
             }
@@ -1722,8 +2204,7 @@
             updateControls();
         }
 
-        // === ХІД ДИЛЕРА ===
-        function dealerPlay() {
+        function dealerPlay(decision) {
             gameState = 'dealer';
             updateDisplay();
             addLog('Хід дилера...', 'info');
@@ -1734,50 +2215,56 @@
                     updateDisplay();
                     setTimeout(play, 600);
                 } else {
-                    determineWinner();
+                    determineWinner(decision);
                 }
             }
             
             setTimeout(play, 600);
         }
 
-        // === ВИЗНАЧЕННЯ ПЕРЕМОЖЦЯ ===
-        function determineWinner() {
+        function determineWinner(decision) {
             const dScore = calcScore(dealerHand);
-            let roundProfit = 0;
+            let gameResult = '';
             
             playerHands.forEach((hand, idx) => {
                 const pScore = calcScore(hand);
                 
                 if (pScore > 21) {
-                    // Програш
                     stats.losses++;
-                    addLog(`Рука ${idx+1}: перебір → програш`, 'error');
+                    gameResult = 'loss';
+                    if (idx === 0 && decision) saveDecisionToKnowledgeBase(decision, 'loss');
                 } else if (dScore > 21 || pScore > dScore) {
-                    // Виграш
                     const winAmount = currentBet * 2;
                     balance += winAmount;
-                    roundProfit += currentBet;
                     stats.wins++;
-                    addLog(`Рука ${idx+1}: виграш! +₴${currentBet}`, 'success');
+                    gameResult = 'win';
+                    if (idx === 0 && decision) saveDecisionToKnowledgeBase(decision, 'win');
                 } else if (pScore === dScore) {
-                    // Нічия - повертаємо ставку
                     balance += currentBet;
                     stats.pushes++;
-                    addLog(`Рука ${idx+1}: нічия`, 'info');
+                    gameResult = 'push';
+                    if (idx === 0 && decision) saveDecisionToKnowledgeBase(decision, 'push');
                 } else {
-                    // Програш
                     stats.losses++;
-                    addLog(`Рука ${idx+1}: програш`, 'error');
+                    gameResult = 'loss';
+                    if (idx === 0 && decision) saveDecisionToKnowledgeBase(decision, 'loss');
                 }
             });
             
             stats.totalGames++;
             
-            if (roundProfit > 0) {
-                autoPlayStats.currentStreak = Math.max(0, autoPlayStats.currentStreak) + 1;
-            } else if (roundProfit < 0) {
-                autoPlayStats.currentStreak = Math.min(0, autoPlayStats.currentStreak) - 1;
+            // Зберігаємо гру в Firebase
+            if (firebaseConnected) {
+                const gameData = {
+                    playerScore: calcScore(playerHand),
+                    dealerScore: dScore,
+                    bet: currentBet,
+                    result: gameResult,
+                    profit: gameResult === 'win' ? currentBet : gameResult === 'loss' ? -currentBet : 0,
+                    trueCount: trueCount,
+                    decisions: [decision]
+                };
+                saveGameToFirebase(gameData);
             }
             
             endRound('finished');
@@ -1788,255 +2275,71 @@
             updateStats();
             updateControls();
             updateDisplay();
-            addLog(`Раунд завершено. Баланс: ₴${balance}`, 'info');
         }
 
-        // === AI АНАЛІЗ ===
+        // ==================== AI АНАЛІЗ ====================
         async function visualizeAIDecision() {
             if (!tfModel || playerHand.length < 2) return null;
             
             const state = getCurrentState();
             
-            // Створюємо вхідні дані для нейромережі
-            const input = tf.tensor2d([[
-                state.playerScore / 21,
-                state.dealerCard / 11,
-                state.canSplit ? 1 : 0,
-                state.canDouble ? 1 : 0,
-                state.isSoft ? 1 : 0,
-                state.numCards / 8,
-                trueCount / 10,
-                deck.length / 416,
-                state.playerScore > 17 ? 1 : 0,
-                state.dealerCard >= 7 ? 1 : 0,
-                state.playerScore <= 11 ? 1 : 0,
-                (state.playerScore - state.dealerCard) / 20,
-                state.isSoft && state.playerScore >= 18 ? 1 : 0,
-                state.canDouble && state.playerScore >= 9 && state.playerScore <= 11 ? 1 : 0,
-                trueCount > 1 ? 1 : 0
-            ]]);
-
-            const pred = tfModel.predict(input);
-            const probs = await pred.data();
-            input.dispose();
-            pred.dispose();
-
-            const actions = ['hit', 'stand', 'double', 'split'];
-            const masks = [true, true, state.canDouble, state.canSplit];
+            let nnAction = null;
+            if (isModelReady && knowledgeBase.length >= 10) {
+                try {
+                    const input = tf.tensor2d([[
+                        state.playerScore / 21,
+                        state.dealerCard / 11,
+                        state.numCards / 5,
+                        state.canSplit ? 1 : 0,
+                        state.canDouble ? 1 : 0,
+                        state.isSoft ? 1 : 0,
+                        trueCount / 10,
+                        (state.playerScore - state.dealerCard) / 20,
+                        state.hand[0]?.value / 11 || 0,
+                        state.hand[1]?.value / 11 || 0
+                    ]]);
+                    
+                    const prediction = tfModel.predict(input);
+                    const probs = await prediction.data();
+                    
+                    const actions = ['hit', 'stand', 'double', 'split'];
+                    nnAction = actions[probs.indexOf(Math.max(...probs))];
+                    
+                    document.getElementById('prob-hit').textContent = (probs[0]*100).toFixed(1) + '%';
+                    document.getElementById('prob-stand').textContent = (probs[1]*100).toFixed(1) + '%';
+                    document.getElementById('prob-double').textContent = (probs[2]*100).toFixed(1) + '%';
+                    document.getElementById('prob-split').textContent = (probs[3]*100).toFixed(1) + '%';
+                    
+                    input.dispose();
+                    prediction.dispose();
+                } catch (error) {
+                    console.log('NN prediction error:', error);
+                }
+            }
             
-            // Нормалізуємо ймовірності
-            const validProbs = probs.map((p, i) => masks[i] ? p : 0);
-            const sum = validProbs.reduce((a,b) => a+b, 0);
-            const normalized = validProbs.map(p => sum > 0 ? p / sum : 0);
+            const tableAction = getOptimalActionFromTable(state);
+            const bestAction = nnAction || tableAction || 'stand';
             
-            // Отримуємо дію з оптимізованої стратегії
-            const optimizedAction = getOptimizedStrategyAction(state);
-            const maxProb = Math.max(...normalized);
-            const bestAction = optimizedAction || actions[normalized.indexOf(maxProb)];
-
-            // Оновлюємо UI
             document.querySelectorAll('.decision-cell').forEach(cell => {
                 cell.classList.remove('selected');
-                cell.style.opacity = '0.5';
             });
-
-            normalized.forEach((prob, idx) => {
-                const cell = document.getElementById('cell-' + actions[idx]);
-                const probDiv = document.getElementById('prob-' + actions[idx]);
-                probDiv.textContent = (prob * 100).toFixed(1) + '%';
-                
-                if (masks[idx]) {
-                    cell.style.opacity = Math.max(0.3, prob * 1.5);
-                    if (actions[idx] === bestAction) {
-                        cell.classList.add('selected');
-                    }
-                } else {
-                    cell.style.opacity = '0.2';
-                    probDiv.textContent = 'N/A';
-                }
-            });
-
-            // Показуємо фактори рішення
-            showReasoning(state, normalized, bestAction, optimizedAction !== null);
-            document.getElementById('vizStatus').textContent = `Рішення: ${bestAction.toUpperCase()}`;
             
-            return { bestAction, confidence: maxProb };
+            const cell = document.getElementById('cell-' + bestAction);
+            if (cell) cell.classList.add('selected');
+            
+            document.getElementById('vizStatus').textContent = nnAction ? 
+                `🧠 Нейромережа: ${bestAction.toUpperCase()}` : 
+                `📋 Таблиця: ${bestAction.toUpperCase()}`;
+            
+            return { bestAction };
         }
 
-        function getOptimizedStrategyAction(state) {
-            const {playerScore, dealerCard, canSplit, canDouble, isSoft} = state;
-            const dCard = dealerCard === 11 ? 'A' : dealerCard.toString();
-            
-            let strategyTable, key;
-            
-            if (canSplit && canSplitHand(playerHands[currentHandIndex])) {
-                strategyTable = optimizedStrategy.pairs;
-                const cardValue = playerHands[currentHandIndex][0].value;
-                if (cardValue === 11) key = 'A,A';
-                else if (cardValue === 10) key = '10,10';
-                else key = `${cardValue},${cardValue}`;
-            } else if (isSoft) {
-                strategyTable = optimizedStrategy.soft;
-                const secondCard = playerScore - 11;
-                key = `A${secondCard}`;
-            } else {
-                strategyTable = optimizedStrategy.hard;
-                key = Math.min(20, Math.max(8, playerScore));
-            }
-            
-            if (strategyTable[key] && strategyTable[key][dCard]) {
-                const action = strategyTable[key][dCard];
-                if (action === 'H') return 'hit';
-                if (action === 'S') return 'stand';
-                if (action === 'D' && canDouble) return 'double';
-                if (action === 'SP' && canSplit) return 'split';
-            }
-            
-            return null;
-        }
-
-        function showReasoning(state, probs, bestAction, isOptimized) {
-            const box = document.getElementById('reasoningBox');
-            const list = document.getElementById('factorsList');
-            
-            const factors = [
-                { name: 'Очки гравця', value: state.playerScore, weight: state.playerScore > 17 ? 'Високі - краще стояти' : 'Низькі - потрібна карта' },
-                { name: 'Карта дилера', value: state.dealerCard, weight: state.dealerCard >= 7 ? 'Сильна - ризиковано' : 'Слабка - можна грати' },
-                { name: 'True Count', value: trueCount.toFixed(1), weight: trueCount > 0 ? 'Позитивний (+ ставка)' : 'Негативний' },
-                { name: 'Карт в колоді', value: deck.length, weight: deck.length > 200 ? 'Багато' : 'Мало' },
-                { name: 'Стратегія', value: isOptimized ? 'Оптимізована' : 'Базова', weight: isOptimized ? 'AI покращив' : 'Класична' }
-            ];
-
-            list.innerHTML = factors.map(f => `
-                <div class="factor-row">
-                    <span style="color: ${f.name === 'Стратегія' && isOptimized ? '#00ff88' : '#aaa'};">${f.name}:</span>
-                    <span style="color: #fff; font-weight: bold;">${f.value}</span>
-                </div>
-                <div style="font-size: 8px; color: #4ecdc4; margin-bottom: 4px; padding-left: 10px;">
-                    → ${f.weight}
-                </div>
-            `).join('');
-
-            box.style.display = 'block';
-        }
-
-        // === ОНОВЛЕННЯ ІНТЕРФЕЙСУ ===
-        function updateDisplay() {
-            const currentHand = playerHands[currentHandIndex] || playerHand;
-            
-            // Відображення карт гравця
-            if (playerHands.length > 1) {
-                let playerHtml = '';
-                playerHands.forEach((hand, idx) => {
-                    const isActive = idx === currentHandIndex;
-                    playerHtml += `<div style="opacity: ${isActive ? 1 : 0.5}; border: ${isActive ? '2px solid #00ff88' : 'none'}; border-radius: 10px; padding: 4px;">`;
-                    playerHtml += hand.map(c => renderCard(c)).join('');
-                    playerHtml += `<div style="text-align: center; font-size: 11px; color: ${isActive ? '#00ff88' : '#888'};">${calcScore(hand)}</div>`;
-                    playerHtml += '</div>';
-                });
-                document.getElementById('playerCards').innerHTML = playerHtml;
-            } else {
-                document.getElementById('playerCards').innerHTML = playerHand.map(c => renderCard(c)).join('');
-            }
-            
-            document.getElementById('playerScore').textContent = currentHand ? calcScore(currentHand) : '--';
-            
-            // Відображення карт дилера
-            const dealerHtml = dealerHand.map((c, i) => 
-                renderCard(c, gameState === 'playing' && i === 1)
-            ).join('');
-            document.getElementById('dealerCards').innerHTML = dealerHtml || '<div class="card card-back"></div>';
-            
-            const dScore = calcScore(dealerHand);
-            document.getElementById('dealerScore').textContent = 
-                gameState === 'playing' ? (dealerHand[0] ? dealerHand[0].value : '--') : dScore;
-        }
-
-        function renderCard(card, hidden = false) {
-            if (!card) return '<div class="card card-back"></div>';
-            if (hidden) return '<div class="card card-back"></div>';
-            
-            const cls = card.isRed ? 'red' : 'black';
-            return `<div class="card ${cls}">
-                <div style="font-size:10px">${card.name}${card.suit}</div>
-                <div class="card-center">${card.suit}</div>
-                <div style="font-size:10px;transform:rotate(180deg)">${card.name}${card.suit}</div>
-            </div>`;
-        }
-
-        function updateStats() {
-            // Баланс
-            document.getElementById('balanceValue').textContent = '₴' + Math.floor(balance);
-            document.getElementById('balanceSub').textContent = 'TC: ' + trueCount.toFixed(1);
-            
-            // Прибуток (від початкового балансу)
-            const profit = balance - startingBalance;
-            const profitEl = document.getElementById('profitValue');
-            profitEl.textContent = (profit >= 0 ? '+' : '') + '₴' + Math.floor(profit);
-            profitEl.className = 'stat-value ' + (profit >= 0 ? 'positive' : profit < 0 ? 'negative' : 'neutral');
-            
-            const profitPercentEl = document.getElementById('profitPercent');
-            const profitPercent = startingBalance > 0 ? (profit / startingBalance * 100) : 0;
-            profitPercentEl.textContent = (profitPercent > 0 ? '+' : '') + profitPercent.toFixed(1) + '%';
-            profitPercentEl.style.color = profit >= 0 ? '#00ff88' : '#ff6b6b';
-            
-            // Точність AI
-            const accuracy = stats.totalDecisions > 0 ? (stats.correctDecisions / stats.totalDecisions * 100) : 0;
-            document.getElementById('accuracyValue').textContent = accuracy.toFixed(1) + '%';
-            document.getElementById('gamesCount').textContent = stats.totalGames + ' ігор';
-        }
-
-        function updateControls() {
-            if (isAutoPlaying) return;
-            
-            const controlArea = document.getElementById('controlArea');
-            const activeTab = document.querySelector('.tab-btn.active')?.id || 'tabManual';
-            
-            if (gameState === 'playing') {
-                // Режим гри - показуємо кнопки дій
-                controlArea.className = 'control-grid four-cols';
-                const state = getCurrentState();
-                
-                controlArea.innerHTML = `
-                    <button class="big-btn btn-hit" onclick="playerAction('hit')">ВЗЯТИ</button>
-                    <button class="big-btn btn-stand" onclick="playerAction('stand')">СТОП</button>
-                    <button class="big-btn btn-double" onclick="playerAction('double')" ${!state.canDouble ? 'disabled' : ''}>ПОДВ.</button>
-                    <button class="big-btn btn-split" onclick="playerAction('split')" ${!state.canSplit ? 'disabled' : ''}>СПЛІТ</button>
-                `;
-            } else {
-                // Режим очікування
-                controlArea.className = 'control-grid';
-                
-                if (activeTab === 'tabManual') {
-                    controlArea.innerHTML = `
-                        <button class="big-btn btn-deal" onclick="newRound()">🎲 НОВА ГРА</button>
-                        <button class="big-btn btn-autoplay" onclick="startAutoPlay()">🤖 АВТОГРА</button>
-                    `;
-                } else if (activeTab === 'tabTrain') {
-                    controlArea.innerHTML = `
-                        <button class="big-btn btn-train" onclick="startSelfPlay()">🎓 НАВЧАННЯ</button>
-                        <button class="big-btn btn-optimize" onclick="startSelfPlay()">📊 ОПТИМІЗАЦІЯ</button>
-                    `;
-                }
-            }
-        }
-
-        function setMode(mode) {
+        // ==================== АВТОГРА ====================
+        async function startAutoPlay() {
             if (isAutoPlaying) {
-                addLog('Зупиніть автогру спочатку', 'error');
+                addLog('Автогра вже запущена', 'error');
                 return;
             }
-            
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById('tab' + mode.charAt(0).toUpperCase() + mode.slice(1)).classList.add('active');
-            
-            gameState = 'idle';
-            updateControls();
-        }
-
-        // === АВТОГРА ===
-        async function startAutoPlay() {
-            if (isAutoPlaying) return;
             
             if (balance < currentBet) {
                 addLog('Недостатньо коштів для автогри!', 'error');
@@ -2044,23 +2347,32 @@
                 return;
             }
 
+            autoPlayStats = {
+                gamesPlayed: 0,
+                totalWon: 0,
+                totalLost: 0,
+                currentStreak: 0
+            };
+            
             isAutoPlaying = true;
             autoPlayPaused = false;
-            autoPlayStats.startBalance = balance;
-            autoPlayStats.gamesPlayed = 0;
-            autoPlayStats.totalWon = 0;
-            autoPlayStats.totalLost = 0;
-            autoPlayStats.currentStreak = 0;
             
             document.getElementById('autoPlayPanel').style.display = 'block';
             document.getElementById('systemStatus').textContent = '🤖 Автогра';
             document.getElementById('systemStatus').className = 'status-badge autoplay';
+            document.getElementById('mainBtn').disabled = true;
+            document.getElementById('secondBtn').disabled = true;
             
-            addLog('🤖 AI починає автоматичну гру!', 'autoplay');
+            updateAutoPlayStats();
+            addLog('🤖 Початок автоматичної гри', 'autoplay');
             
+            autoPlayLoop();
+        }
+
+        async function autoPlayLoop() {
             while (isAutoPlaying && balance >= currentBet) {
                 if (autoPlayPaused) {
-                    await new Promise(r => setTimeout(r, 100));
+                    await new Promise(r => setTimeout(r, 500));
                     continue;
                 }
                 
@@ -2078,84 +2390,157 @@
         }
 
         async function autoPlayRound() {
-            // Спрощена версія для автогри
             playerHands = [];
             currentHandIndex = 0;
             
+            if (balance < currentBet) {
+                return;
+            }
+            
             balance -= currentBet;
+            
             dealerHand = [draw(), draw()];
             playerHand = [draw(), draw()];
             playerHands.push([...playerHand]);
             
             gameState = 'playing';
-            autoPlayStats.gamesPlayed++;
             
             updateDisplay();
             updateStats();
             
-            // Перевірка блекджека
-            if (checkBlackjack()) return;
+            const pScore = calcScore(playerHand);
+            const dScore = calcScore(dealerHand);
             
-            // AI грає
-            while (currentHandIndex < playerHands.length) {
-                const currentHand = playerHands[currentHandIndex];
-                let handComplete = false;
+            if (pScore === 21 && playerHand.length === 2) {
+                if (dScore === 21 && dealerHand.length === 2) {
+                    balance += currentBet;
+                    addLog('Нічия (обидва блекджек)', 'info');
+                } else {
+                    const winAmount = currentBet * 2.5;
+                    balance += winAmount;
+                    autoPlayStats.totalWon += currentBet;
+                    autoPlayStats.currentStreak++;
+                    addLog('🎰 Блекджек! +' + Math.floor(winAmount - currentBet), 'success');
+                }
+                gameState = 'finished';
+                autoPlayStats.gamesPlayed++;
+                updateDisplay();
+                return;
+            }
+            
+            if (dScore === 21 && dealerHand.length === 2) {
+                autoPlayStats.totalLost += currentBet;
+                autoPlayStats.currentStreak--;
+                addLog('Дилер має блекджек', 'error');
+                gameState = 'finished';
+                autoPlayStats.gamesPlayed++;
+                updateDisplay();
+                return;
+            }
+            
+            await new Promise(r => setTimeout(r, 300));
+            
+            const currentHand = playerHands[0];
+            let handComplete = false;
+            const decisions = [];
+            
+            while (!handComplete && gameState === 'playing') {
+                const state = getCurrentState();
                 
-                while (!handComplete && isAutoPlaying) {
-                    const decision = await visualizeAIDecision();
-                    if (!decision) break;
-                    
-                    const action = decision.bestAction;
-                    
-                    // Імітуємо дію
-                    if (action === 'hit') {
-                        currentHand.push(draw());
-                        if (calcScore(currentHand) > 21) handComplete = true;
-                    } else if (action === 'stand') {
-                        handComplete = true;
-                    } else if (action === 'double' && balance >= currentBet) {
-                        balance -= currentBet;
-                        currentHand.push(draw());
-                        handComplete = true;
-                    } else if (action === 'split' && balance >= currentBet && canSplitHand(currentHand)) {
-                        balance -= currentBet;
-                        const card1 = currentHand[0];
-                        const card2 = currentHand[1];
-                        playerHands[currentHandIndex] = [card1, draw()];
-                        playerHands.push([card2, draw()]);
+                let action = 'stand';
+                if (isModelReady && knowledgeBase.length >= 10) {
+                    try {
+                        const input = tf.tensor2d([[
+                            state.playerScore / 21,
+                            state.dealerCard / 11,
+                            state.numCards / 5,
+                            state.canSplit ? 1 : 0,
+                            state.canDouble ? 1 : 0,
+                            state.isSoft ? 1 : 0,
+                            trueCount / 10,
+                            (state.playerScore - state.dealerCard) / 20,
+                            state.hand[0]?.value / 11 || 0,
+                            state.hand[1]?.value / 11 || 0
+                        ]]);
+                        
+                        const prediction = tfModel.predict(input);
+                        const probs = await prediction.data();
+                        const actions = ['hit', 'stand', 'double', 'split'];
+                        action = actions[probs.indexOf(Math.max(...probs))];
+                        
+                        input.dispose();
+                        prediction.dispose();
+                    } catch (error) {
+                        action = state.playerScore >= 17 ? 'stand' : 'hit';
                     }
-                    
-                    updateDisplay();
-                    await new Promise(r => setTimeout(r, 300));
+                } else {
+                    action = state.playerScore >= 17 ? 'stand' : 'hit';
                 }
                 
-                currentHandIndex++;
+                decisions.push({
+                    hand: [...currentHand],
+                    dealerUpCard: dealerHand[0],
+                    action: action,
+                    timestamp: new Date().toISOString()
+                });
+                
+                if (action === 'hit') {
+                    currentHand.push(draw());
+                    updateDisplay();
+                    await new Promise(r => setTimeout(r, 400));
+                    
+                    if (calcScore(currentHand) > 21) {
+                        handComplete = true;
+                    }
+                } else {
+                    handComplete = true;
+                }
             }
             
-            // Хід дилера
             gameState = 'dealer';
             updateDisplay();
+            await new Promise(r => setTimeout(r, 500));
             
             while (calcScore(dealerHand) < 17) {
-                await new Promise(r => setTimeout(r, 400));
                 dealerHand.push(draw());
                 updateDisplay();
+                await new Promise(r => setTimeout(r, 400));
             }
             
-            // Визначаємо переможця
-            determineWinner();
-        }
-
-        function updateAutoPlayStats() {
-            document.getElementById('autoGames').textContent = autoPlayStats.gamesPlayed;
-            const netProfit = autoPlayStats.totalWon - autoPlayStats.totalLost;
-            const profitEl = document.getElementById('autoWinAmount');
-            profitEl.textContent = (netProfit >= 0 ? '+' : '') + '₴' + Math.floor(netProfit);
-            profitEl.style.color = netProfit >= 0 ? '#00ff88' : '#ff6b6b';
+            const finalPScore = calcScore(playerHand);
+            const finalDScore = calcScore(dealerHand);
             
-            const streakEl = document.getElementById('autoStreak');
-            streakEl.textContent = (autoPlayStats.currentStreak > 0 ? '+' : '') + autoPlayStats.currentStreak;
-            streakEl.style.color = autoPlayStats.currentStreak > 0 ? '#00ff88' : autoPlayStats.currentStreak < 0 ? '#ff6b6b' : '#ffd700';
+            let outcome = '';
+            if (finalPScore > 21) {
+                outcome = 'loss';
+                autoPlayStats.totalLost += currentBet;
+                autoPlayStats.currentStreak--;
+                addLog('Перебір', 'error');
+            } else if (finalDScore > 21 || finalPScore > finalDScore) {
+                outcome = 'win';
+                balance += currentBet * 2;
+                autoPlayStats.totalWon += currentBet;
+                autoPlayStats.currentStreak++;
+                addLog('Виграш! +' + currentBet, 'success');
+            } else if (finalPScore === finalDScore) {
+                outcome = 'push';
+                balance += currentBet;
+                addLog('Нічия', 'info');
+            } else {
+                outcome = 'loss';
+                autoPlayStats.totalLost += currentBet;
+                autoPlayStats.currentStreak--;
+                addLog('Програш', 'error');
+            }
+            
+            decisions.forEach(decision => {
+                saveDecisionToKnowledgeBase(decision, outcome);
+            });
+            
+            autoPlayStats.gamesPlayed++;
+            gameState = 'finished';
+            updateDisplay();
+            updateStats();
         }
 
         function stopAutoPlay() {
@@ -2165,98 +2550,151 @@
             document.getElementById('autoPlayPanel').style.display = 'none';
             document.getElementById('systemStatus').textContent = '✅ Готовий';
             document.getElementById('systemStatus').className = 'status-badge ready';
+            document.getElementById('mainBtn').disabled = false;
+            document.getElementById('secondBtn').disabled = false;
             
             updateControls();
             addLog('Автогра зупинена', 'info');
+            showKnowledgeBase();
         }
 
         function toggleAutoPause() {
             autoPlayPaused = !autoPlayPaused;
             const btn = document.getElementById('pauseBtn');
+            const status = document.getElementById('autoPlayStatus');
+            
             if (autoPlayPaused) {
                 btn.textContent = '▶ ПРОДОВЖИТИ';
-                btn.style.background = '#00ff88';
-                document.getElementById('autoPlayStatus').textContent = 'Пауза';
+                status.textContent = 'Пауза';
+                addLog('Автогра на паузі', 'info');
             } else {
                 btn.textContent = '⏸ ПАУЗА';
-                btn.style.background = '#4ecdc4';
-                document.getElementById('autoPlayStatus').textContent = 'Грає...';
+                status.textContent = 'Грає...';
+                addLog('Автогра продовжується', 'info');
             }
         }
 
-        // === НАВЧАННЯ ===
-        async function startSelfPlay() {
-            if (isSelfPlaying) {
-                isSelfPlaying = false;
-                document.getElementById('systemStatus').textContent = '✅ Готовий';
-                document.getElementById('systemStatus').className = 'status-badge ready';
-                document.getElementById('learningStatus').style.display = 'none';
-                addLog('Навчання зупинено', 'info');
+        function updateAutoPlayStats() {
+            document.getElementById('autoGames').textContent = autoPlayStats.gamesPlayed;
+            
+            const netProfit = autoPlayStats.totalWon - autoPlayStats.totalLost;
+            const winEl = document.getElementById('autoWinAmount');
+            winEl.textContent = (netProfit >= 0 ? '+' : '') + '₴' + Math.floor(netProfit);
+            winEl.style.color = netProfit >= 0 ? '#00ff88' : '#ff6b6b';
+            
+            const streakEl = document.getElementById('autoStreak');
+            streakEl.textContent = (autoPlayStats.currentStreak > 0 ? '+' : '') + autoPlayStats.currentStreak;
+            streakEl.style.color = autoPlayStats.currentStreak > 0 ? '#00ff88' : autoPlayStats.currentStreak < 0 ? '#ff6b6b' : '#ffd700';
+        }
+
+        // ==================== ФУНКЦІЇ ВІДОБРАЖЕННЯ ====================
+        function showKnowledgeBase() {
+            const modal = document.getElementById('knowledgeModal');
+            updateKnowledgeBaseDisplay();
+            renderKnowledgeBase();
+            modal.classList.add('show');
+        }
+
+        function renderKnowledgeBase() {
+            const container = document.getElementById('knowledgeBaseContainer');
+            
+            if (knowledgeBase.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #aaa; padding: 20px;">База знань порожня. Грайте, щоб зібрати дані для навчання нейромережі.</div>';
                 return;
             }
-
-            isSelfPlaying = true;
-            document.getElementById('systemStatus').textContent = '🤖 Навчання';
-            document.getElementById('systemStatus').className = 'status-badge selfplay';
-            document.getElementById('learningStatus').style.display = 'block';
-            document.getElementById('learningIndicator').style.display = 'inline-block';
-
-            addLog('Починаємо самонавчання AI...', 'ai');
-
-            // Симуляції
-            optimizationData.simulationsRun = 0;
-            optimizationData.rulesChanged = 0;
             
-            for (let i = 0; i < 1000 && isSelfPlaying; i++) {
-                optimizationData.simulationsRun++;
-                
-                // Випадкові покращення
-                if (Math.random() > 0.95) {
-                    optimizationData.rulesChanged++;
-                }
-                
-                if (i % 100 === 0) {
-                    document.getElementById('learningProgress').style.width = (i / 10) + '%';
-                    document.getElementById('simCount').textContent = optimizationData.simulationsRun;
-                    document.getElementById('ruleChanges').textContent = optimizationData.rulesChanged;
-                    await new Promise(r => setTimeout(r, 10));
-                }
-            }
-
-            optimizationData.baseStrategyROI = -0.8;
-            optimizationData.optimizedROI = 1.2;
+            const recent = [...knowledgeBase].reverse().slice(0, 10);
             
-            document.getElementById('optimizationStats').style.display = 'block';
-            document.getElementById('scenariosTested').textContent = optimizationData.simulationsRun;
-            document.getElementById('improvementsFound').textContent = optimizationData.rulesChanged;
-            document.getElementById('baseROI').textContent = optimizationData.baseStrategyROI.toFixed(2) + '%';
-            document.getElementById('optimizedROI').textContent = (optimizationData.optimizedROI > 0 ? '+' : '') + optimizationData.optimizedROI.toFixed(2) + '%';
-
-            isSelfPlaying = false;
-            document.getElementById('systemStatus').textContent = '✅ Оптимізовано';
-            document.getElementById('systemStatus').className = 'status-badge ready';
-            document.getElementById('learningStatus').style.display = 'none';
-            document.getElementById('learningIndicator').style.display = 'none';
-
-            addLog(`Навчання завершено!`, 'success');
+            let html = '';
+            recent.forEach(scenario => {
+                const isOptimal = scenario.actionTaken === scenario.alternativeAction;
+                
+                html += `
+                    <div class="scenario-card ${isOptimal ? 'learned' : ''}">
+                        <div class="scenario-header">
+                            <span>🎴 Сценарій #${scenario.id}</span>
+                            <span class="outcome-badge ${scenario.outcome === 'win' ? 'outcome-win' : scenario.outcome === 'loss' ? 'outcome-loss' : 'outcome-push'}">
+                                ${scenario.outcome === 'win' ? '💰' : scenario.outcome === 'loss' ? '💔' : '🤝'}
+                            </span>
+                        </div>
+                        
+                        <div class="scenario-cards">
+                            ${scenario.hand.map(c => `<div class="scenario-mini-card ${c.isRed ? 'red' : 'black'}">${c.name}</div>`).join('')}
+                            <div style="margin-left: 10px;">🃏 ${scenario.dealerCard?.name || '?'}</div>
+                        </div>
+                        
+                        <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                            <span>🤖 Зробив: <span style="color: #ff6b6b;">${getActionName(scenario.actionTaken)}</span></span>
+                            <span>✨ Треба: <span style="color: #00ff88;">${getActionName(scenario.alternativeAction)}</span></span>
+                        </div>
+                        
+                        ${!isOptimal ? '<div style="color: #ff6b6b; font-size: 9px;">⚠️ ПОМИЛКА - буде використано для навчання</div>' : ''}
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
         }
 
-        // === ТАБЛИЦЯ СТРАТЕГІЇ ===
-        function generateStrategyTable() {
-            const container = document.getElementById('tableContainer');
+        function getActionName(action) {
+            const names = { hit: 'ВЗЯТИ', stand: 'СТОП', double: 'ПОДВОЇТИ', split: 'РОЗДІЛИТИ' };
+            return names[action] || action;
+        }
+
+        function updateKnowledgeBaseDisplay() {
+            document.getElementById('totalScenarios').textContent = knowledgeBase.length;
+        }
+
+        function updateModelInfo() {
+            document.getElementById('dataPoints').textContent = knowledgeBase.length;
+            document.getElementById('firebaseCount').textContent = gamesCount;
+            document.getElementById('lastLoss').textContent = lastLoss.toFixed(4);
+            document.getElementById('modelAccuracy').textContent = modelAccuracy + '%';
+            document.getElementById('modelAccuracy2').textContent = modelAccuracy + '%';
+            document.getElementById('trainSamples').textContent = trainingData.length;
+        }
+
+        // ==================== ФУНКЦІЇ ДЛЯ ТАБЛИЦІ ====================
+        function showFullTable() {
+            const modal = document.getElementById('strategyModal');
+            showStrategyTable('hard');
+            modal.classList.add('show');
+        }
+
+        function hideModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.remove('show');
+        }
+
+        function showStrategyTable(type) {
+            currentTableView = type;
+            
+            document.querySelectorAll('.table-btn').forEach(btn => btn.classList.remove('active'));
+            if (type === 'hard') document.getElementById('tabHardBtn').classList.add('active');
+            if (type === 'soft') document.getElementById('tabSoftBtn').classList.add('active');
+            if (type === 'pairs') document.getElementById('tabPairsBtn').classList.add('active');
+            
+            const container = document.getElementById('strategyTableContainer');
             const dealerCards = [2, 3, 4, 5, 6, 7, 8, 9, 10, 'A'];
             
-            let html = '<table class="full-strategy-table"><tr><th></th>';
+            let html = '<table class="strategy-table"><tr><th>Гравець \\ Дилер</th>';
             dealerCards.forEach(dc => html += `<th>${dc}</th>`);
             html += '</tr>';
 
-            const data = optimizedStrategy[currentTableView];
+            const data = optimizedStrategy[type];
             
             for (let [playerHand, actions] of Object.entries(data)) {
                 html += `<tr><td class="header-col">${playerHand}</td>`;
+                
                 for (let dc of dealerCards) {
                     const action = actions[dc];
-                    const cellClass = action === 'H' ? 'cell-h' : action === 'S' ? 'cell-s' : action === 'D' ? 'cell-d' : 'cell-sp';
+                    
+                    let cellClass = '';
+                    if (action === 'H') cellClass = 'cell-h';
+                    else if (action === 'S') cellClass = 'cell-s';
+                    else if (action === 'D') cellClass = 'cell-d';
+                    else if (action === 'SP') cellClass = 'cell-sp';
+                    
                     html += `<td class="${cellClass}">${action}</td>`;
                 }
                 html += '</tr>';
@@ -2266,87 +2704,111 @@
             container.innerHTML = html;
         }
 
-        function switchTableView(view) {
-            currentTableView = view;
-            generateStrategyTable();
-        }
-
-        function resetToBasicStrategy() {
-            optimizedStrategy = JSON.parse(JSON.stringify(baseStrategy));
-            generateStrategyTable();
-            addLog('Стратегію скинуто до базової', 'info');
-        }
-
-        function exportStrategy() {
-            addLog('Стратегію експортовано в консоль', 'success');
-            console.log('Optimized Strategy:', optimizedStrategy);
-        }
-
-        // === МОДАЛЬНІ ВІКНА ===
-        function showFullTable() {
-            generateStrategyTable();
-            document.getElementById('tableModal').classList.add('show');
-        }
-
-        function hideTableModal() {
-            document.getElementById('tableModal').classList.remove('show');
-        }
-
-        function showDepositModal() {
-            document.getElementById('depositModal').classList.add('show');
-        }
-
-        function hideDepositModal() {
-            document.getElementById('depositModal').classList.remove('show');
-        }
-
-        function confirmDeposit() {
-            const amount = parseInt(document.getElementById('depositAmount').value);
-            if (amount && amount >= 100) {
-                balance += amount;
-                startingBalance += amount; // Оновлюємо початковий баланс для розрахунку прибутку
-                updateStats();
-                hideDepositModal();
-                addLog(`Поповнено: +₴${amount}`, 'success');
-                document.getElementById('depositAmount').value = '';
-            } else {
-                addLog('Мінімальна сума 100₴', 'error');
-            }
-        }
-
-        // === СТАВКИ ===
-        function changeBet(delta) {
-            const newBet = currentBet + delta;
-            if (newBet >= 50 && newBet <= 10000 && newBet <= balance) {
-                currentBet = newBet;
-                document.getElementById('currentBetInput').value = currentBet;
-            }
-        }
-
-        function updateBetFromInput() {
-            const val = parseInt(document.getElementById('currentBetInput').value);
-            if (val >= 50 && val <= 10000 && val <= balance) {
-                currentBet = val;
-            } else {
-                document.getElementById('currentBetInput').value = currentBet;
-            }
-        }
-
-        function toggleSideBet(type) {
-            const toggle = document.getElementById(type + 'Toggle');
-            sideBets[type].active = !sideBets[type].active;
-            toggle.classList.toggle('active', sideBets[type].active);
+        // ==================== ОНОВЛЕННЯ ІНТЕРФЕЙСУ ====================
+        function updateDisplay() {
+            const currentHand = playerHands[currentHandIndex] || playerHand;
             
-            if (sideBets[type].active && sideBets[type].amount === 0) {
-                sideBets[type].amount = 50;
-                document.getElementById(type + 'Bet').value = 50;
+            if (playerHands.length > 1) {
+                let playerHtml = '';
+                playerHands.forEach((hand, idx) => {
+                    const isActive = idx === currentHandIndex;
+                    playerHtml += `<div style="opacity: ${isActive ? 1 : 0.5}; border: ${isActive ? '2px solid #00ff88' : 'none'}; border-radius: 10px; padding: 4px;">`;
+                    playerHtml += hand.map(c => renderCard(c)).join('');
+                    playerHtml += `<div style="text-align: center; font-size: 11px;">${calcScore(hand)}</div>`;
+                    playerHtml += '</div>';
+                });
+                document.getElementById('playerCards').innerHTML = playerHtml;
+            } else {
+                document.getElementById('playerCards').innerHTML = playerHand.map(c => renderCard(c)).join('');
             }
+            
+            document.getElementById('playerScore').textContent = currentHand ? calcScore(currentHand) : '--';
+            
+            const dealerHtml = dealerHand.map((c, i) => 
+                renderCard(c, gameState === 'playing' && i === 1)
+            ).join('');
+            document.getElementById('dealerCards').innerHTML = dealerHtml || '<div class="card card-back"></div>';
+            
+            const dScore = calcScore(dealerHand);
+            document.getElementById('dealerScore').textContent = 
+                gameState === 'playing' ? (dealerHand[0] ? dealerHand[0].value : '--') : dScore;
+        }
+
+        function renderCard(card, hidden = false) {
+            if (!card) return '<div class="card card-back"></div>';
+            if (hidden) return '<div class="card card-back"></div>';
+            
+            const cls = card.isRed ? 'red' : 'black';
+            return `<div class="card ${cls}">
+                <div>${card.name}${card.suit}</div>
+                <div class="card-center">${card.suit}</div>
+                <div style="transform:rotate(180deg)">${card.name}${card.suit}</div>
+            </div>`;
+        }
+
+        function updateStats() {
+            document.getElementById('balanceValue').textContent = '₴' + Math.floor(balance);
+            document.getElementById('balanceSub').textContent = 'TC: ' + trueCount.toFixed(1);
+            
+            const profit = balance - startingBalance;
+            const profitEl = document.getElementById('profitValue');
+            profitEl.textContent = (profit >= 0 ? '+' : '') + '₴' + Math.floor(profit);
+            profitEl.className = 'stat-value ' + (profit >= 0 ? 'positive' : profit < 0 ? 'negative' : 'neutral');
+            
+            const profitPercent = startingBalance > 0 ? (profit / startingBalance * 100) : 0;
+            document.getElementById('profitPercent').textContent = (profitPercent > 0 ? '+' : '') + profitPercent.toFixed(1) + '%';
+            
+            const accuracy = stats.totalDecisions > 0 ? (stats.correctDecisions / stats.totalDecisions * 100) : 0;
+            document.getElementById('accuracyValue').textContent = accuracy.toFixed(1) + '%';
+            document.getElementById('gamesCount').textContent = stats.totalGames + ' ігор';
+            
+            updateModelInfo();
+        }
+
+        function updateControls() {
+            if (isAutoPlaying) return;
+            
+            const controlArea = document.getElementById('controlArea');
+            
+            if (gameState === 'playing') {
+                controlArea.className = 'control-grid four-cols';
+                const state = getCurrentState();
+                
+                controlArea.innerHTML = `
+                    <button class="big-btn btn-hit" onclick="playerAction('hit')">ВЗЯТИ</button>
+                    <button class="big-btn btn-stand" onclick="playerAction('stand')">СТОП</button>
+                    <button class="big-btn btn-double" onclick="playerAction('double')" ${!state.canDouble ? 'disabled' : ''}>ПОДВ.</button>
+                    <button class="big-btn btn-split" onclick="playerAction('split')" ${!state.canSplit ? 'disabled' : ''}>СПЛІТ</button>
+                `;
+            } else {
+                controlArea.className = 'control-grid';
+                controlArea.innerHTML = `
+                    <button class="big-btn btn-deal" onclick="newRound()">🎲 НОВА ГРА</button>
+                    <button class="big-btn btn-autoplay" onclick="startAutoPlay()">🤖 АВТОГРА</button>
+                `;
+            }
+        }
+
+        function setMode(mode) {
+            if (mode === 'manual') {
+                document.getElementById('tabManual').classList.add('active');
+                document.getElementById('tabKnowledge').classList.remove('active');
+                document.getElementById('tabTable').classList.remove('active');
+            }
+            updateControls();
+        }
+
+        // ==================== ПОБІЧНІ СТАВКИ ====================
+        function toggleSideBet(type) {
+            sideBets[type].active = !sideBets[type].active;
+            const toggle = document.getElementById(type + 'Toggle');
+            toggle.classList.toggle('active', sideBets[type].active);
             updateTotalSideBets();
         }
 
         function updateSideBet(type) {
             const amount = parseInt(document.getElementById(type + 'Bet').value) || 0;
-            sideBets[type].amount = Math.min(5000, Math.max(0, amount));
+            sideBets[type].amount = Math.min(500, Math.max(0, amount));
             updateTotalSideBets();
         }
 
@@ -2355,17 +2817,52 @@
             document.getElementById('totalSideBets').textContent = '₴' + total;
         }
 
-        // === ЛОГ ===
+        // ==================== СТАВКИ ====================
+        function changeBet(delta) {
+            const newBet = currentBet + delta;
+            if (newBet >= 50 && newBet <= balance) {
+                currentBet = newBet;
+                document.getElementById('currentBetInput').value = currentBet;
+            }
+        }
+
+        function updateBetFromInput() {
+            const val = parseInt(document.getElementById('currentBetInput').value);
+            if (val >= 50 && val <= balance) {
+                currentBet = val;
+            } else {
+                document.getElementById('currentBetInput').value = currentBet;
+            }
+        }
+
+        // ==================== МОДАЛЬНІ ВІКНА ====================
+        function showDepositModal() {
+            document.getElementById('depositModal').classList.add('show');
+        }
+
+        function confirmDeposit() {
+            const amount = parseInt(document.getElementById('depositAmount').value);
+            if (amount && amount >= 100) {
+                balance += amount;
+                startingBalance += amount;
+                updateStats();
+                hideModal('depositModal');
+                addLog(`Поповнено: +₴${amount}`, 'success');
+            }
+        }
+
+        // ==================== ЛОГ ====================
         function addLog(msg, type) {
-            const consoleLog = document.getElementById('consoleLog');
+            const log = document.getElementById('consoleLog');
             const line = document.createElement('div');
             line.className = 'log-line log-' + type;
-            line.textContent = new Date().toLocaleTimeString('uk-UA', {hour:'2-digit', minute:'2-digit', second:'2-digit'}) + ' | ' + msg;
-            consoleLog.appendChild(line);
-            consoleLog.scrollTop = consoleLog.scrollHeight;
+            const time = new Date().toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+            line.textContent = time + ' | ' + msg;
+            log.appendChild(line);
+            log.scrollTop = log.scrollHeight;
             
-            while (consoleLog.children.length > 30) {
-                consoleLog.removeChild(consoleLog.firstChild);
+            while (log.children.length > 20) {
+                log.removeChild(log.firstChild);
             }
         }
     </script>
